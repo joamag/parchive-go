@@ -9,11 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-*
+* SIMD accelerated encoding on Apple Silicon, ARM servers and x86-64
 
 ### Changed
 
-*
+* Creating a recovery set is around eleven times faster and now matches par2cmdline-turbo
+* Input files are read once instead of twice when creating a recovery set
+* Recovery data is computed across all available processor cores
 
 ### Fixed
 

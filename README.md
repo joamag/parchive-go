@@ -12,7 +12,7 @@ Built on top of the powerful [Go Programming Language](https://go.dev), Parchive
 
 Parity files sit next to the data they protect. When bit rot flips a byte, a download truncates, or a file disappears altogether, the recovery volumes hold enough redundancy to rebuild what was lost, byte for byte. It is the trick Usenet has relied on for two decades, and it is just as useful for optical media, tape and cold archives.
 
-The whole thing is around 1,700 lines of ordinary Go across two packages. No cgo, no assembly, no third-party modules, no vendored binaries: just the standard library, so it cross-compiles anywhere Go does.
+The whole thing is around 2,200 lines across two packages. No cgo, no third-party modules, no vendored binaries: just the standard library, so it cross-compiles anywhere Go does. Roughly 170 of those lines are Go assembly, the SIMD kernels for arm64 and amd64, and every architecture without one falls back to a portable Go path that produces identical bytes.
 
 ### Features
 
@@ -23,6 +23,8 @@ The whole thing is around 1,700 lines of ordinary Go across two packages. No cgo
 - Resynchronising packet scanner that skips damaged packets, so a partly corrupt `.par2` still works
 - Per-slice CRC32 and MD5 verification, matching how the format detects damage
 - Repair by Gauss-Jordan elimination, rebuilding damaged slices and fully missing files alike
+- SIMD encoding on arm64 (NEON) and amd64 (SSSE3), with a portable fallback that is verified byte for byte against it
+- Single pass over the input: hashing and encoding read the same bytes, concurrently
 - Memory bounded by slice size times recovery count, not by the size of the protected data
 - Usable as a library or as a single self-contained `parchive` binary
 - Zero third-party dependencies, `CGO_ENABLED=0`, every `GOARCH` Go supports
@@ -44,7 +46,7 @@ Parchive-Go does not try to be faster or more complete than par2cmdline. It aims
 | Importable library | `Yes` | `Yes` | `Coarse (libpar2)` | `Coarse (libpar2)` |
 | Third-party dependencies | `None` | `3` | `n/a` | `n/a` |
 | Needs cgo | `No` | `No` | `n/a` | `n/a` |
-| SIMD acceleration | `No` | `amd64 only` | `Yes` | `Yes` |
+| SIMD acceleration | `arm64, amd64` | `amd64 only` | `Yes` | `Yes` |
 | Misaligned data recovery | `No` | `Yes` | `Yes` | `Yes` |
 | Maintained | `Yes` | `Dormant since 2021` | `Yes` | `Yes` |
 
@@ -194,7 +196,7 @@ PAR1 is the older and blunter design: each *file* is one shard, zero padded to t
 Stated plainly, because a data-integrity tool that oversells itself is worse than useless:
 
 - **No misaligned data recovery.** Slices are only checked at their natural offsets. Insert or delete a single byte near the start of a file and every slice after it reads as damaged, where par2cmdline's sliding-window scan would recover them all. This is the biggest functional gap.
-- **Single threaded, no SIMD.** Creation is roughly 11 times slower than par2cmdline-turbo. If throughput is what matters, use par2cmdline-turbo.
+- **No AVX2 or AVX-512 kernel.** amd64 uses SSSE3, which every x86-64 processor since 2006 has, but a wider kernel would go faster still. Verification and repair are also less parallel than creation.
 - **Repair holds the damaged file in memory** while it is rewritten, so a single file larger than RAM will not repair.
 - **No subdirectories.** File names are taken as base names on creation.
 - **No PAR2 Unicode Filename packets.** Non-ASCII names work in PAR1, which stores UTF-16 natively, but PAR2 sets use the ASCII name packet only.
@@ -202,18 +204,22 @@ Stated plainly, because a data-integrity tool that oversells itself is worse tha
 
 ## Benchmarks
 
-Numbers are not the reason to pick this library, but hiding them would be worse. Measured on an Apple M-series laptop, 256 MiB input, 512 KiB slices, 20 recovery slices, best of three runs:
+Measured on an Apple M-series laptop, 256 MiB input, 512 KiB slices, 20 recovery slices, best of three runs:
 
 | | Parchive-Go | akalin/gopar | par2cmdline 1.3.0 | par2cmdline-turbo 1.5.0 |
 | --- | --- | --- | --- | --- |
-| Create | `3.79s` | `0.93s` | `1.90s` | `0.33s` |
-| Verify | `0.36s` | `0.70s` | `1.19s` | `0.32s` |
-| Repair | `1.74s` | `1.17s` | `2.56s` | `1.03s` |
-| Peak memory, create | `28 MiB` | `379 MiB` | `13 MiB` | `30 MiB` |
+| Create | `0.34s` | `0.92s` | `1.88s` | `0.33s` |
+| Verify | `0.34s` | `0.69s` | `1.16s` | `0.31s` |
+| Repair | `0.91s` | `1.22s` | `2.64s` | `1.00s` |
+| Peak memory, create | `38 MiB` | `379 MiB` | `13 MiB` | `30 MiB` |
 
-Creation is the weak spot and by a wide margin, because encoding is scalar and single threaded. Verification is checksum bound rather than field-arithmetic bound, which is why it holds up. The memory column is the one worth dwelling on: gopar loads every input file into memory, so its footprint tracks the size of the archive, while Parchive-Go's tracks slice size times recovery count.
+Creation runs level with par2cmdline-turbo, the SIMD-accelerated C++ implementation, and repair edges ahead of it. Against the plain reference implementation it is five times faster to create and roughly three times faster to repair.
 
-Reproduce with `go test -bench=. ./...`, or compare against other implementations directly.
+Three things got it there, in order of how much they mattered. The Reed-Solomon inner loop moved from a log-add-antilog sequence with a modulo per value to nibble tables driven by one SIMD instruction, which took it from 1.5 GB/s to 20 GB/s. The input is now read once instead of twice, with the whole-file hash, the per-slice checksums and the encoding all consuming the same buffer concurrently. And the recovery slices are partitioned across cores, which is safe because no two of them ever touch the same output buffer.
+
+The memory column is worth dwelling on: gopar loads every input file into memory, so its footprint tracks the size of the archive, while Parchive-Go's tracks slice size times recovery count plus a small read-ahead buffer.
+
+Reproduce the inner loop with `go test -bench=MulAddKernel ./par2`, or the whole operation with `go test -bench=Create ./par2`.
 
 ## Security
 

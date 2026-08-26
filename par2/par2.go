@@ -19,116 +19,6 @@ import (
 )
 
 // ---------------------------------------------------------------------------
-// GF(2^16) — generator 2, primitive polynomial 0x1100B (as mandated by PAR2).
-// ---------------------------------------------------------------------------
-
-const (
-	gfPoly  = 0x1100B
-	gfLimit = 0xFFFF // 65535 = 3 * 5 * 17 * 257
-)
-
-var (
-	gfExp [gfLimit]uint16     // gfExp[k] = 2^k
-	gfLog [gfLimit + 1]uint16 // gfLog[2^k] = k
-)
-
-func init() {
-	x := uint32(1)
-	for i := 0; i < gfLimit; i++ {
-		gfExp[i] = uint16(x)
-		gfLog[x] = uint16(i)
-		x <<= 1
-		if x&0x10000 != 0 {
-			x ^= gfPoly
-		}
-	}
-}
-
-func gfMul(a, b uint16) uint16 {
-	if a == 0 || b == 0 {
-		return 0
-	}
-	return gfExp[(uint32(gfLog[a])+uint32(gfLog[b]))%gfLimit]
-}
-
-func gfDiv(a, b uint16) uint16 {
-	if a == 0 {
-		return 0
-	}
-	return gfExp[(uint32(gfLog[a])+gfLimit-uint32(gfLog[b]))%gfLimit]
-}
-
-func gfPow(a uint16, n uint32) uint16 {
-	if a == 0 {
-		return 0
-	}
-	return gfExp[(uint64(gfLog[a])*uint64(n))%gfLimit]
-}
-
-func gcd(a, b uint32) uint32 {
-	for b != 0 {
-		a, b = b, a%b
-	}
-	return a
-}
-
-// MaxInputSlices is phi(65535): the number of usable RS constants.
-const MaxInputSlices = 32768
-
-// inputConstants assigns the RS constant of every input slice. PAR2 uses
-// 2^k for successive k whose logarithm is coprime with 65535, so that every
-// constant has full multiplicative order.
-func inputConstants(n int) ([]uint16, error) {
-	if n > MaxInputSlices {
-		return nil, fmt.Errorf("par2: %d input slices exceeds limit of %d", n, MaxInputSlices)
-	}
-	out := make([]uint16, 0, n)
-	for k := uint32(1); len(out) < n; k++ {
-		if gcd(k, gfLimit) == 1 {
-			out = append(out, gfExp[k])
-		}
-	}
-	return out, nil
-}
-
-// mulAdd computes dst ^= factor * src over 16-bit little-endian words.
-func mulAdd(dst, src []byte, factor uint16) {
-	if factor == 0 {
-		return
-	}
-	if factor == 1 {
-		for i := range src {
-			dst[i] ^= src[i]
-		}
-		return
-	}
-	lf := uint32(gfLog[factor])
-	for i := 0; i+1 < len(src); i += 2 {
-		v := binary.LittleEndian.Uint16(src[i:])
-		if v == 0 {
-			continue
-		}
-		p := gfExp[(uint32(gfLog[v])+lf)%gfLimit]
-		binary.LittleEndian.PutUint16(dst[i:], binary.LittleEndian.Uint16(dst[i:])^p)
-	}
-}
-
-// scale computes buf = factor * buf.
-func scale(buf []byte, factor uint16) {
-	if factor == 1 {
-		return
-	}
-	lf := uint32(gfLog[factor])
-	for i := 0; i+1 < len(buf); i += 2 {
-		v := binary.LittleEndian.Uint16(buf[i:])
-		if v == 0 {
-			continue
-		}
-		binary.LittleEndian.PutUint16(buf[i:], gfExp[(uint32(gfLog[v])+lf)%gfLimit])
-	}
-}
-
-// ---------------------------------------------------------------------------
 // Packets
 // ---------------------------------------------------------------------------
 
@@ -292,7 +182,7 @@ func Describe(path string, sliceSize uint64) (*FileDesc, error) {
 		return nil, err
 	}
 
-	fd := &FileDesc{Size: uint64(st.Size()), Name: filepath.Base(path)}
+	fd := &FileDesc{Size: uint64(st.Size()), Name: baseName(path)}
 	whole := md5.New()
 	first := md5.New()
 	remaining16k := int64(16384)
@@ -330,65 +220,6 @@ func Describe(path string, sliceSize uint64) (*FileDesc, error) {
 	copy(fd.MD516k[:], first.Sum(nil))
 	fd.ID = FileID(fd.MD516k, fd.Size, fd.Name)
 	return fd, nil
-}
-
-// Create builds a recovery set for the given files: count recovery slices with
-// exponents firstExp .. firstExp+count-1.
-func Create(paths []string, sliceSize uint64, firstExp uint32, count int, creator string) (*Set, error) {
-	if sliceSize == 0 || sliceSize%4 != 0 {
-		return nil, errors.New("par2: slice size must be a non-zero multiple of 4")
-	}
-	s := &Set{SliceSize: sliceSize, Recovery: map[uint32][]byte{}, Creator: creator}
-
-	byID := map[[16]byte]string{}
-	for _, p := range paths {
-		fd, err := Describe(p, sliceSize)
-		if err != nil {
-			return nil, err
-		}
-		s.Files = append(s.Files, fd)
-		byID[fd.ID] = p
-	}
-	sort.Slice(s.Files, func(i, j int) bool {
-		return bytes.Compare(s.Files[i].ID[:], s.Files[j].ID[:]) < 0
-	})
-	s.SetID = md5.Sum(s.mainBody())
-
-	if count == 0 {
-		return s, nil
-	}
-	consts, err := inputConstants(s.TotalSlices())
-	if err != nil {
-		return nil, err
-	}
-	for e := 0; e < count; e++ {
-		s.Recovery[firstExp+uint32(e)] = make([]byte, sliceSize)
-	}
-
-	global := 0
-	buf := make([]byte, sliceSize)
-	for _, fd := range s.Files {
-		f, err := os.Open(byID[fd.ID])
-		if err != nil {
-			return nil, err
-		}
-		for i := 0; i < fd.sliceCount(sliceSize); i++ {
-			n, err := io.ReadFull(f, buf)
-			if err != nil && err != io.EOF && err != io.ErrUnexpectedEOF {
-				f.Close()
-				return nil, err
-			}
-			for j := n; j < len(buf); j++ {
-				buf[j] = 0
-			}
-			for e := 0; e < count; e++ {
-				mulAdd(s.Recovery[firstExp+uint32(e)], buf, gfPow(consts[global], firstExp+uint32(e)))
-			}
-			global++
-		}
-		f.Close()
-	}
-	return s, nil
 }
 
 // ---------------------------------------------------------------------------
@@ -790,3 +621,7 @@ func rewrite(path string, fd *FileDesc, sliceSize uint64, base int, missing map[
 	}
 	return os.Rename(tmp, path)
 }
+
+// baseName is the name a file is recorded under: PAR2 stores no directory
+// component for the sets this package writes.
+func baseName(path string) string { return filepath.Base(path) }

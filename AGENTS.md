@@ -69,10 +69,15 @@ compatibility break rather than a refactor.
 go test -bench=. -benchmem ./...
 ```
 
-Creation is scalar and single threaded by design, to keep the code readable and
-dependency free. Do not add cgo, assembly or third-party modules to chase
-throughput without discussing it first, it is the main thing that distinguishes
-this project.
+Encoding uses SIMD kernels written in Go assembly (NEON on arm64, SSSE3 on
+amd64) with a portable Go fallback. `TestSIMDMatchesScalar` and
+`TestMulAddMatchesReference` compare every kernel against a plain multiply and
+must keep passing on every architecture, so a new kernel is only finished once
+those pass under it.
+
+Do not add cgo or third-party modules to chase throughput. Staying dependency
+free and `CGO_ENABLED=0` is the main thing that distinguishes this project, and
+Go assembly keeps both properties.
 
 ## Linting
 

@@ -71,22 +71,6 @@ func TestInputConstantsAreDistinctAndFullOrder(t *testing.T) {
 	}
 }
 
-func TestMulAddIsItsOwnInverse(t *testing.T) {
-	src := make([]byte, 256)
-	rand.New(rand.NewSource(1)).Read(src)
-	dst := make([]byte, 256)
-	want := append([]byte(nil), dst...)
-
-	mulAdd(dst, src, 0x1234)
-	if bytes.Equal(dst, want) {
-		t.Fatal("mulAdd had no effect")
-	}
-	mulAdd(dst, src, 0x1234)
-	if !bytes.Equal(dst, want) {
-		t.Fatal("applying mulAdd twice did not cancel out")
-	}
-}
-
 // ---------------------------------------------------------------------------
 // Packets
 // ---------------------------------------------------------------------------
@@ -328,7 +312,7 @@ func TestFileIDIsStable(t *testing.T) {
 
 func BenchmarkCreate(b *testing.B) {
 	dir := b.TempDir()
-	buf := make([]byte, 4<<20)
+	buf := make([]byte, 64<<20)
 	rand.New(rand.NewSource(7)).Read(buf)
 	path := filepath.Join(dir, "bench.bin")
 	if err := os.WriteFile(path, buf, 0o644); err != nil {
@@ -337,7 +321,7 @@ func BenchmarkCreate(b *testing.B) {
 	b.SetBytes(int64(len(buf)))
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		if _, err := Create([]string{path}, 65536, 0, 10, "bench"); err != nil {
+		if _, err := Create([]string{path}, 512<<10, 0, 20, "bench"); err != nil {
 			b.Fatal(err)
 		}
 	}
