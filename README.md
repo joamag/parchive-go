@@ -4,6 +4,8 @@
   **Simple (yet complete) PAR1 and PAR2 recovery sets in pure Go 🛟**
 </div>
 
+## Warning
+
 **parchive-go has been written for educational purposes and shouldn't be taken too seriously.** Use it at your own risk!
 
 ## Description
