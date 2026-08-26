@@ -9,21 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-* Recovery of data that moved after bytes were inserted or deleted in a file
-* Recovery of slices that ended up inside a different file of the set
-* SIMD accelerated encoding on Apple Silicon, ARM servers and x86-64
+*
 
 ### Changed
 
-* The command line now matches par2cmdline, including its options and exit codes
-* Recovery data is spread across several volume files, as par2cmdline does
-* Creating a recovery set is around eleven times faster and now matches par2cmdline-turbo
-* Input files are read once instead of twice when creating a recovery set
-* Recovery data is computed across all available processor cores
+*
 
 ### Fixed
 
-* Replaced the retired Go Report Card badge
+*
 
 ## [0.1.0] - 2026-08-26
 
@@ -31,5 +25,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * Creation, verification and repair of PAR2 recovery sets
 * Creation, verification and repair of PAR1 recovery sets
+* Recovery of data that moved after bytes were inserted or deleted in a file
+* Recovery of slices that ended up inside a different file of the set
+* SIMD accelerated encoding on Apple Silicon, ARM servers and x86-64
+* Command line compatible with par2cmdline, including its options and exit codes
+* Recovery data spread across several volume files, as par2cmdline does
 * Single `parchive` command line tool that picks the format from the file extension
 * Importable library for both formats, with no third-party dependencies
