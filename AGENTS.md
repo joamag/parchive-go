@@ -75,6 +75,11 @@ amd64) with a portable Go fallback. `TestSIMDMatchesScalar` and
 must keep passing on every architecture, so a new kernel is only finished once
 those pass under it.
 
+The misaligned-data search depends on the rolling CRC32 in `rolling.go` being
+exactly equivalent to `hash/crc32`. `TestRollingMatchesChecksum` compares the two
+at every offset for several window widths, and is the test to look at first if
+verification starts missing slices it used to find.
+
 Do not add cgo or third-party modules to chase throughput. Staying dependency
 free and `CGO_ENABLED=0` is the main thing that distinguishes this project, and
 Go assembly keeps both properties.

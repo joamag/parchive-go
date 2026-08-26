@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+* Recovery of data that moved after bytes were inserted or deleted in a file
+* Recovery of slices that ended up inside a different file of the set
 * SIMD accelerated encoding on Apple Silicon, ARM servers and x86-64
 
 ### Changed

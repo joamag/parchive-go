@@ -56,6 +56,9 @@ func usage() {
   parchive verify out.par2                                 check every file
   parchive repair out.par2                                 rebuild what is bad
 
+Verify and repair find slices that moved because bytes were inserted or
+deleted. Pass -no-scan to check only the offsets slices should be at.
+
 The format follows the extension of the recovery file: .par2 or .par.
 `)
 }
@@ -153,15 +156,23 @@ func createPar1(out string, inputs []string, count int) error {
 }
 
 func check(args []string, repair bool) error {
-	if len(args) < 1 {
-		return fmt.Errorf("usage: verify|repair file.par2")
+	name := "verify"
+	if repair {
+		name = "repair"
 	}
-	target := args[0]
+	fs := flag.NewFlagSet(name, flag.ExitOnError)
+	noScan := fs.Bool("no-scan", false,
+		"only look for slices at their own offsets, skipping the search for misplaced data")
+	fs.Parse(args)
+	if fs.NArg() < 1 {
+		return fmt.Errorf("usage: %s [-no-scan] file.par2", name)
+	}
+	target := fs.Arg(0)
 	dir := filepath.Dir(target)
 	if isPar1(target) {
 		return checkPar1(target, dir, repair)
 	}
-	return checkPar2(target, dir, repair)
+	return checkPar2(target, dir, repair, par2.Options{NoScan: *noScan})
 }
 
 // siblings collects every companion volume next to the given recovery file, so
@@ -173,38 +184,55 @@ func siblings(target, pattern string) []string {
 	return found
 }
 
-func checkPar2(target, dir string, repair bool) error {
+func checkPar2(target, dir string, repair bool, o par2.Options) error {
 	set, err := par2.Parse(siblings(target, "*.par2")...)
 	if err != nil {
 		return err
 	}
-	status, err := set.Verify(dir)
+	status, err := set.VerifyWith(dir, o)
 	if err != nil {
 		return err
 	}
-	bad := 0
+
+	lost, moved, work := 0, 0, false
 	for _, st := range status {
 		switch {
 		case st.OK:
 			fmt.Printf("  ok       %s\n", st.File.Name)
-		case !st.Present:
+			continue
+		case !st.Present && len(st.Damaged) == len(st.File.Slices):
 			fmt.Printf("  missing  %s (%d slices)\n", st.File.Name, len(st.Damaged))
-			bad += len(st.Damaged)
+		case len(st.Damaged) == 0:
+			// Every slice was found, just not where it belongs: the file can be
+			// rebuilt without spending any recovery data.
+			fmt.Printf("  moved    %s (%d/%d slices misplaced)\n",
+				st.File.Name, len(st.Misplaced), len(st.File.Slices))
 		default:
-			fmt.Printf("  damaged  %s (%d/%d slices bad)\n",
-				st.File.Name, len(st.Damaged), len(st.File.Slices))
-			bad += len(st.Damaged)
+			fmt.Printf("  damaged  %s (%d/%d slices bad", st.File.Name, len(st.Damaged), len(st.File.Slices))
+			if len(st.Misplaced) > 0 {
+				fmt.Printf(", %d misplaced", len(st.Misplaced))
+			}
+			fmt.Println(")")
 		}
+		lost += len(st.Damaged)
+		moved += len(st.Misplaced)
+		work = true
 	}
-	if bad == 0 {
+	if !work {
 		fmt.Println("all files verified")
 		return nil
 	}
-	fmt.Printf("%d slices need repair, %d recovery slices available\n", bad, len(set.Recovery))
+
+	switch {
+	case lost == 0:
+		fmt.Printf("%d slices are misplaced, no recovery data needed\n", moved)
+	default:
+		fmt.Printf("%d slices need repair, %d recovery slices available\n", lost, len(set.Recovery))
+	}
 	if !repair {
 		return nil
 	}
-	if err := set.Repair(dir); err != nil {
+	if err := set.RepairWith(dir, o); err != nil {
 		return err
 	}
 	fmt.Println("repaired")

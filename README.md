@@ -22,6 +22,7 @@ The whole thing is around 2,200 lines across two packages. No cgo, no third-part
 - Reed-Solomon over GF(2^8) with polynomial `0x11D` for PAR1
 - Resynchronising packet scanner that skips damaged packets, so a partly corrupt `.par2` still works
 - Per-slice CRC32 and MD5 verification, matching how the format detects damage
+- Misaligned data recovery: a rolling checksum finds slices that moved because bytes were inserted or deleted, and slices that ended up in a different file
 - Repair by Gauss-Jordan elimination, rebuilding damaged slices and fully missing files alike
 - SIMD encoding on arm64 (NEON) and amd64 (SSSE3), with a portable fallback that is verified byte for byte against it
 - Single pass over the input: hashing and encoding read the same bytes, concurrently
@@ -47,7 +48,7 @@ Parchive-Go does not try to be faster or more complete than par2cmdline. It aims
 | Third-party dependencies | `None` | `3` | `n/a` | `n/a` |
 | Needs cgo | `No` | `No` | `n/a` | `n/a` |
 | SIMD acceleration | `arm64, amd64` | `amd64 only` | `Yes` | `Yes` |
-| Misaligned data recovery | `No` | `Yes` | `Yes` | `Yes` |
+| Misaligned data recovery | `Yes` | `Yes` | `Yes` | `Yes` |
 | Maintained | `Yes` | `Dormant since 2021` | `Yes` | `Yes` |
 
 Where Parchive-Go genuinely differs is narrow and honest: it is the only Go implementation that creates *and* verifies *and* repairs both formats with no third-party modules and no cgo, under a permissive licence, in a codebase small enough to read in an afternoon. It is not the first pure-Go PAR2 library and it is not the fastest anything.
@@ -88,7 +89,7 @@ go build ./...
 
 The format follows the extension of the recovery file: `.par2` for PAR2, `.par` for PAR1.
 
-<img src="res/demo.svg" alt="Creating, damaging, verifying and repairing a recovery set" width="720" />
+<img src="res/demo.svg" alt="Creating, damaging, verifying and repairing a recovery set" width="760" />
 
 ### Create
 
@@ -123,6 +124,15 @@ parchive repair archive.par2
 ```
 
 Damaged slices are rebuilt in place and missing files are recreated from scratch, as long as there are at least as many recovery slices as there are damaged ones.
+
+Slices are looked for at their own offsets first. If anything is missing, a one-slice window is slid across the files of the set, which finds data that moved because bytes were inserted or deleted:
+
+```text
+  moved    photo.raw (15/15 slices misplaced)
+15 slices are misplaced, no recovery data needed
+```
+
+That file had a single byte inserted at the front, which moved every slice off its offset without losing anything, so it is rebuilt without spending recovery data at all. The same search finds slices that ended up inside a different file of the set. Pass `-no-scan` to skip it and check only the offsets slices should be at.
 
 ### Library
 
@@ -191,11 +201,24 @@ Repair subtracts the surviving slices from the recovery slices, leaving a linear
 
 PAR1 is the older and blunter design: each *file* is one shard, zero padded to the length of the largest, and recovery volume `v` holds the sum over files of `(i+1)^(v-1)` times the file data in GF(2^8). Losing a 4 KiB file costs a whole volume the size of the biggest file in the set, which is precisely why PAR2 replaced it.
 
+## Finding data that moved
+
+Damage is not always a flipped byte. A truncated download, a botched concatenation or an editor that rewrote a file can insert or delete bytes, and from then on every slice sits at the wrong offset even though the data is perfectly intact. Checking the offsets a slice is supposed to be at would call all of it lost.
+
+PAR2 records a CRC32 per slice, which makes those slices findable: slide a window one slice wide across the file and watch for a checksum that belongs to the set. Recomputing a CRC at every byte would be quadratic, so the window is updated incrementally instead. The IEEE CRC register update is affine over GF(2), which means the register for the next window is the current one advanced by the incoming byte, with the outgoing byte's contribution removed:
+
+```text
+C' = step(C, incoming) ^ A^n(table[outgoing])
+```
+
+where `A` is the linear map that advances the register by one zero byte. `A^n` for a window of megabytes comes from repeated squaring of a 32 by 32 bit matrix rather than iterating, so the precomputation is instant regardless of slice size.
+
+The scan only runs when the cheap aligned check already came up short, so intact data never pays for it. Within a scan, a window that matches a known slice is stepped over rather than crawled through, and files that verified cleanly are not searched at all.
+
 ## Limitations
 
 Stated plainly, because a data-integrity tool that oversells itself is worse than useless:
 
-- **No misaligned data recovery.** Slices are only checked at their natural offsets. Insert or delete a single byte near the start of a file and every slice after it reads as damaged, where par2cmdline's sliding-window scan would recover them all. This is the biggest functional gap.
 - **No AVX2 or AVX-512 kernel.** amd64 uses SSSE3, which every x86-64 processor since 2006 has, but a wider kernel would go faster still. Verification and repair are also less parallel than creation.
 - **Repair holds the damaged file in memory** while it is rewritten, so a single file larger than RAM will not repair.
 - **No subdirectories.** File names are taken as base names on creation.
@@ -208,12 +231,12 @@ Measured on an Apple M-series laptop, 256 MiB input, 512 KiB slices, 20 recovery
 
 | | Parchive-Go | akalin/gopar | par2cmdline 1.3.0 | par2cmdline-turbo 1.5.0 |
 | --- | --- | --- | --- | --- |
-| Create | `0.34s` | `0.92s` | `1.88s` | `0.33s` |
-| Verify | `0.34s` | `0.69s` | `1.16s` | `0.31s` |
-| Repair | `0.91s` | `1.22s` | `2.64s` | `1.00s` |
+| Create | `0.37s` | `0.99s` | `1.92s` | `0.36s` |
+| Verify | `0.37s` | `0.74s` | `1.25s` | `0.33s` |
+| Repair | `1.11s` | `1.25s` | `2.79s` | `1.15s` |
 | Peak memory, create | `38 MiB` | `379 MiB` | `13 MiB` | `30 MiB` |
 
-Creation runs level with par2cmdline-turbo, the SIMD-accelerated C++ implementation, and repair edges ahead of it. Against the plain reference implementation it is five times faster to create and roughly three times faster to repair.
+Creation runs level with par2cmdline-turbo, the SIMD-accelerated C++ implementation, and repair edges ahead of it. Against the plain reference implementation it is five times faster to create and roughly two and a half times faster to repair. The repair figure includes the misaligned-data search, which par2cmdline also performs.
 
 Three things got it there, in order of how much they mattered. The Reed-Solomon inner loop moved from a log-add-antilog sequence with a modulo per value to nibble tables driven by one SIMD instruction, which took it from 1.5 GB/s to 20 GB/s. The input is now read once instead of twice, with the whole-file hash, the per-slice checksums and the encoding all consuming the same buffer concurrently. And the recovery slices are partitioned across cores, which is safe because no two of them ever touch the same output buffer.
 
