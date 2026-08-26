@@ -5,6 +5,7 @@
 # test and coverage artifacts
 *.out
 *.test
+coverage.log
 
 # generated recovery sets
 *.par2

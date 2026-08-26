@@ -14,7 +14,10 @@ jobs:
           "1.21",
           "1.22",
           "1.23",
-          "1.24"
+          "1.24",
+          "1.25",
+          "1.26",
+          "1.27"
         ]
     runs-on: ubuntu-latest
     container: golang:${{ matrix.go-version }}
@@ -35,6 +38,52 @@ jobs:
         run: go test -race -coverprofile=coverage.out ./...
       - name: Print coverage
         run: go tool cover -func=coverage.out | tail -1
+  coverage:
+    name: Coverage
+    timeout-minutes: 10
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code from repository
+        uses: actions/checkout@v7
+      - name: Setup Go
+        uses: actions/setup-go@v7
+        with:
+          go-version: "1.27"
+          # the project has no third-party modules, so there is no go.sum to key
+          # a module cache on
+          cache: false
+      - name: Run unit tests with coverage
+        shell: bash
+        run: |
+          set -o pipefail
+          go test -race -coverprofile=coverage.out ./... | tee coverage.log
+      # The table lands in the run summary, which is the page the Actions tab
+      # opens on, so coverage is visible without digging through the logs.
+      - name: Write the coverage summary
+        shell: bash
+        run: |
+          {
+            echo "### Coverage"
+            echo
+            echo "| Package | Statements |"
+            echo "| --- | --- |"
+            awk '
+              $1 == "ok" {
+                for (i = 3; i < NF; i++) if ($i == "coverage:") pct = $(i + 1)
+              }
+              $1 == "?" { pct = "no tests" }
+              $1 == "ok" || $1 == "?" {
+                pkg = $2
+                sub(/^github\.com\/joamag\/parchive-go\/?/, "", pkg)
+                if (pkg == "") pkg = "."
+                print "| `" pkg "` | " pct " |"
+              }
+            ' coverage.log
+            printf '| **Total** | **%s** |\n' \
+              "$(go tool cover -func=coverage.out | tail -1 | awk '{print $NF}')"
+            echo
+            echo "Target is 80% overall, and 90% for \`par1\` and \`par2\`."
+          } >> "$GITHUB_STEP_SUMMARY"
   lint:
     name: Lint
     timeout-minutes: 10
