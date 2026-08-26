@@ -1,6 +1,8 @@
-# Parchive-Go
+<div align="center">
+  <img src="res/logo.svg" alt="Parchive-Go" width="220" />
 
-Simple (yet complete) [PAR1](https://parchive.github.io/doc/Parity%20Volume%20Set%20Specification%20v1.0.html) and [PAR2](https://parchive.sourceforge.net/docs/specifications/parity-volume-spec/article-spec.html) recovery sets in pure Go 🛟
+  **Simple (yet complete) PAR1 and PAR2 recovery sets in pure Go 🛟**
+</div>
 
 <img src="res/pipeline.svg" alt="How Parchive-Go creates, verifies and repairs a recovery set" width="820" />
 
@@ -8,7 +10,7 @@ Simple (yet complete) [PAR1](https://parchive.github.io/doc/Parity%20Volume%20Se
 
 ## Description
 
-Built on top of the powerful [Go Programming Language](https://go.dev), Parchive-Go implements the [Parchive](https://parchive.github.io) formats end to end: packet serialisation, Reed-Solomon coding over GF(2^16) for PAR2 and GF(2^8) for PAR1, and the creation, verification and repair of recovery sets.
+Built on top of the powerful [Go Programming Language](https://go.dev), Parchive-Go implements the [PAR1](https://parchive.github.io/doc/Parity%20Volume%20Set%20Specification%20v1.0.html) and [PAR2](https://parchive.sourceforge.net/docs/specifications/parity-volume-spec/article-spec.html) formats end to end: packet serialisation, Reed-Solomon coding over GF(2^16) for PAR2 and GF(2^8) for PAR1, and the creation, verification and repair of recovery sets.
 
 Parity files sit next to the data they protect. When bit rot flips a byte, a download truncates, or a file disappears altogether, the recovery volumes hold enough redundancy to rebuild what was lost, byte for byte. It is the trick Usenet has relied on for two decades, and it is just as useful for optical media, tape and cold archives.
 
