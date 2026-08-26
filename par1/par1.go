@@ -193,7 +193,7 @@ func Describe(path string) (*FileEntry, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	st, err := f.Stat()
 	if err != nil {
 		return nil, err
@@ -278,7 +278,7 @@ func Create(paths []string, count int, client uint32) (*Set, error) {
 			return nil, err
 		}
 		n, err := io.ReadFull(f, buf)
-		f.Close()
+		_ = f.Close()
 		if err != nil && err != io.EOF && err != io.ErrUnexpectedEOF {
 			return nil, err
 		}
@@ -301,13 +301,14 @@ func (s *Set) fileList() []byte {
 	var b bytes.Buffer
 	for _, f := range s.Files {
 		name := utf16.Encode([]rune(f.Name))
-		binary.Write(&b, binary.LittleEndian, f.entrySize())
-		binary.Write(&b, binary.LittleEndian, f.Status)
-		binary.Write(&b, binary.LittleEndian, f.Size)
+		// Writing to a bytes.Buffer cannot fail.
+		_ = binary.Write(&b, binary.LittleEndian, f.entrySize())
+		_ = binary.Write(&b, binary.LittleEndian, f.Status)
+		_ = binary.Write(&b, binary.LittleEndian, f.Size)
 		b.Write(f.MD5[:])
 		b.Write(f.MD516k[:])
 		for _, u := range name {
-			binary.Write(&b, binary.LittleEndian, u)
+			_ = binary.Write(&b, binary.LittleEndian, u)
 		}
 	}
 	return b.Bytes()
@@ -549,7 +550,7 @@ func (s *Set) Repair(dir string) error {
 			return err
 		}
 		n, err := io.ReadFull(f, buf)
-		f.Close()
+		_ = f.Close()
 		if err != nil && err != io.EOF && err != io.ErrUnexpectedEOF {
 			return err
 		}

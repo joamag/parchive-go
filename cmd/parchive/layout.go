@@ -25,6 +25,10 @@ const (
 // rounding at the end.
 func blockSizeFor(files []string, blockCount uint32) (uint64, error) {
 	if uint64(blockCount) < uint64(len(files)) {
+		// This message, and the two below, reproduce par2cmdline's wording
+		// verbatim so that a script reading stderr sees what it expects. That
+		// is why they break the usual Go convention on error strings.
+		//nolint:staticcheck // ST1005: matches par2cmdline output
 		return 0, fmt.Errorf("Block count (%d) cannot be smaller than the number of files(%d). ",
 			blockCount, len(files))
 	}
@@ -75,9 +79,11 @@ func blockSizeFor(files []string, blockCount uint32) (uint64, error) {
 		}
 	}
 	if count > 32768 {
+		//nolint:staticcheck // ST1005: matches par2cmdline output
 		return 0, fmt.Errorf("Error calculating block size. cannot be higher than 32768.")
 	}
 	if count == 0 {
+		//nolint:staticcheck // ST1005: matches par2cmdline output
 		return 0, fmt.Errorf("Error calculating block size. cannot be 0.")
 	}
 	return size * 4, nil

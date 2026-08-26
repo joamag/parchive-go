@@ -101,7 +101,7 @@ func (l *locator) aligned(path string, base, count int, found map[int]located, k
 	if err != nil {
 		return false, nil // absent files are handled by the scan
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	buf := make([]byte, l.size)
 	complete := true
@@ -136,7 +136,7 @@ func (l *locator) scan(path string, found map[int]located, known map[int64]bool)
 	if err != nil {
 		return nil
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	size := l.size
 	chunk := scanChunk

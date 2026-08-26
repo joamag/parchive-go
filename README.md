@@ -1,14 +1,14 @@
 <div align="center">
-  <img src="res/logo.svg" alt="Parchive-Go" width="220" />
+  <img src="res/logo.svg" alt="parchive-go" width="220" />
 
   **Simple (yet complete) PAR1 and PAR2 recovery sets in pure Go 🛟**
 </div>
 
-**Parchive-Go has been written for educational purposes and shouldn't be taken too seriously.** Use it at your own risk!
+**parchive-go has been written for educational purposes and shouldn't be taken too seriously.** Use it at your own risk!
 
 ## Description
 
-Built on top of the powerful [Go Programming Language](https://go.dev), Parchive-Go implements the [PAR1](https://parchive.github.io/doc/Parity%20Volume%20Set%20Specification%20v1.0.html) and [PAR2](https://parchive.sourceforge.net/docs/specifications/parity-volume-spec/article-spec.html) formats end to end: packet serialisation, Reed-Solomon coding over GF(2^16) for PAR2 and GF(2^8) for PAR1, and the creation, verification and repair of recovery sets.
+Built on top of the powerful [Go Programming Language](https://go.dev), parchive-go implements the [PAR1](https://parchive.github.io/doc/Parity%20Volume%20Set%20Specification%20v1.0.html) and [PAR2](https://parchive.sourceforge.net/docs/specifications/parity-volume-spec/article-spec.html) formats end to end: packet serialisation, Reed-Solomon coding over GF(2^16) for PAR2 and GF(2^8) for PAR1, and the creation, verification and repair of recovery sets.
 
 Parity files sit next to the data they protect. When bit rot flips a byte, a download truncates, or a file disappears altogether, the recovery volumes hold enough redundancy to rebuild what was lost, byte for byte. It is the trick Usenet has relied on for two decades, and it is just as useful for optical media, tape and cold archives.
 
@@ -37,9 +37,9 @@ The reference implementation, [par2cmdline](https://github.com/Parchive/par2cmdl
 
 The Go side has been thin for a long time. [klauspost/reedsolomon](https://github.com/klauspost/reedsolomon), the de facto erasure-coding library, [declined to add a PAR2-compatible GF(2^16) engine](https://github.com/klauspost/reedsolomon/issues/72): *"I do not plan to add another since it will be inferior."* The closest thing to an incumbent, [akalin/gopar](https://github.com/akalin/gopar), covers both formats but has been dormant since 2021.
 
-Parchive-Go does not try to be faster or more complete than par2cmdline. It aims to be the version you can simply `import`.
+parchive-go does not try to be faster or more complete than par2cmdline. It aims to be the version you can simply `import`.
 
-| | Parchive-Go | [akalin/gopar](https://github.com/akalin/gopar) | [par2cmdline](https://github.com/Parchive/par2cmdline) | [par2cmdline-turbo](https://github.com/animetosho/par2cmdline-turbo) |
+| | parchive-go | [akalin/gopar](https://github.com/akalin/gopar) | [par2cmdline](https://github.com/Parchive/par2cmdline) | [par2cmdline-turbo](https://github.com/animetosho/par2cmdline-turbo) |
 | --- | --- | --- | --- | --- |
 | Language | Go | Go | C++ | C++ |
 | Licence | Apache-2.0 | BSD-3-Clause | GPL-2.0 | GPL-2.0 |
@@ -53,15 +53,15 @@ Parchive-Go does not try to be faster or more complete than par2cmdline. It aims
 | par2cmdline compatible CLI | `Yes` | `Partial` | `Reference` | `Yes` |
 | Maintained | `Yes` | `Dormant since 2021` | `Yes` | `Yes` |
 
-Where Parchive-Go genuinely differs is narrow and honest: it is the only Go implementation that creates *and* verifies *and* repairs both formats with no third-party modules and no cgo, under a permissive licence, in a codebase small enough to read in an afternoon. It is not the first pure-Go PAR2 library and it is not the fastest anything.
+Where parchive-go genuinely differs is narrow and honest: it is the only Go implementation that creates *and* verifies *and* repairs both formats with no third-party modules and no cgo, under a permissive licence, in a codebase small enough to read in an afternoon. It is not the first pure-Go PAR2 library and it is not the fastest anything.
 
 ## Compatibility
 
 Interoperability is the point, so it is tested rather than asserted. Every claim below was verified by round trip, in both directions, with the files compared byte for byte afterwards:
 
-- **PAR2 against [par2cmdline-turbo](https://github.com/animetosho/par2cmdline-turbo) 1.5.0** - volumes written by Parchive-Go repair damaged and deleted files under `par2`, and Parchive-Go repairs sets that `par2` created
+- **PAR2 against [par2cmdline-turbo](https://github.com/animetosho/par2cmdline-turbo) 1.5.0** - volumes written by parchive-go repair damaged and deleted files under `par2`, and parchive-go repairs sets that `par2` created
 - **PAR1 against [akalin/gopar](https://github.com/akalin/gopar)** - the same round trip in both directions, including a file reconstructed from nothing
-- **PAR1 against [par2cmdline](https://github.com/Parchive/par2cmdline) 1.3.0** - the reference implementation repairs PAR1 sets written by Parchive-Go, rebuilding a corrupted file and a deleted one in a single pass
+- **PAR1 against [par2cmdline](https://github.com/Parchive/par2cmdline) 1.3.0** - the reference implementation repairs PAR1 sets written by parchive-go, rebuilding a corrupted file and a deleted one in a single pass
 
 The CI workflow runs the PAR2 half of this against the `par2` package on every push, so a regression breaks the build rather than someone's archive.
 
@@ -301,7 +301,7 @@ The `par1` package mirrors this shape, with `par1.Create`, `par1.Parse`, `Verify
 
 ## How it works
 
-<img src="res/pipeline.svg" alt="How Parchive-Go creates, verifies and repairs a recovery set" width="820" />
+<img src="res/pipeline.svg" alt="How parchive-go creates, verifies and repairs a recovery set" width="820" />
 
 Both formats build on the same idea: treat the data as a matrix over a finite field and store enough extra rows that any missing rows can be solved for.
 
@@ -339,7 +339,7 @@ Stated plainly, because a data-integrity tool that oversells itself is worse tha
 
 Measured on an Apple M-series laptop, 256 MiB input, 512 KiB slices, 20 recovery slices, best of three runs:
 
-| | Parchive-Go | akalin/gopar | Parchive par2cmdline 1.3.0 | par2cmdline-turbo 1.5.0 |
+| | parchive-go | akalin/gopar | Parchive par2cmdline 1.3.0 | par2cmdline-turbo 1.5.0 |
 | --- | --- | --- | --- | --- |
 | Create | `0.37s` | `0.99s` | `1.92s` | `0.36s` |
 | Verify | `0.37s` | `0.74s` | `1.25s` | `0.33s` |
@@ -350,23 +350,24 @@ Creation runs level with par2cmdline-turbo, the SIMD-accelerated C++ implementat
 
 Three things got it there, in order of how much they mattered. The Reed-Solomon inner loop moved from a log-add-antilog sequence with a modulo per value to nibble tables driven by one SIMD instruction, which took it from 1.5 GB/s to 20 GB/s. The input is now read once instead of twice, with the whole-file hash, the per-slice checksums and the encoding all consuming the same buffer concurrently. And the recovery slices are partitioned across cores, which is safe because no two of them ever touch the same output buffer.
 
-The memory column is worth dwelling on: gopar loads every input file into memory, so its footprint tracks the size of the archive, while Parchive-Go's tracks slice size times recovery count plus a small read-ahead buffer.
+The memory column is worth dwelling on: gopar loads every input file into memory, so its footprint tracks the size of the archive, while parchive-go's tracks slice size times recovery count plus a small read-ahead buffer.
 
 Reproduce the inner loop with `go test -bench=MulAddKernel ./par2`, or the whole operation with `go test -bench=Create ./par2`.
 
 ## Security
 
-Repairing a recovery set means writing files whose names came out of that set, and a `.par2` file travels with the data it protects. Parchive-Go rejects any file name that is absolute or that escapes the directory being repaired, rather than trusting it: the same class of issue as [GHSA-j5pc-g362-c5xp](https://github.com/Parchive/par2cmdline/security/advisories/GHSA-j5pc-g362-c5xp) in par2cmdline.
+Repairing a recovery set means writing files whose names came out of that set, and a `.par2` file travels with the data it protects. parchive-go rejects any file name that is absolute or that escapes the directory being repaired, rather than trusting it: the same class of issue as [GHSA-j5pc-g362-c5xp](https://github.com/Parchive/par2cmdline/security/advisories/GHSA-j5pc-g362-c5xp) in par2cmdline.
 
 That guard is the only hardening claim made here. Repair still writes in place, so keep backups of anything irreplaceable.
 
 ## License
 
-Parchive-Go is currently licensed under the [Apache License, Version 2.0](http://www.apache.org/licenses/).
+parchive-go is currently licensed under the [Apache License, Version 2.0](http://www.apache.org/licenses/).
 
 ## Build Automation
 
 [![Build Status](https://github.com/joamag/parchive-go/workflows/Main%20Workflow/badge.svg)](https://github.com/joamag/parchive-go/actions)
 [![Go Reference](https://pkg.go.dev/badge/github.com/joamag/parchive-go.svg)](https://pkg.go.dev/github.com/joamag/parchive-go)
-[![Go Report Card](https://goreportcard.com/badge/github.com/joamag/parchive-go)](https://goreportcard.com/report/github.com/joamag/parchive-go)
+[![Go Version](https://img.shields.io/github/go-mod/go-version/joamag/parchive-go)](https://go.dev)
+[![Dependencies](https://img.shields.io/badge/dependencies-none-brightgreen)](go.mod)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](https://www.apache.org/licenses/)

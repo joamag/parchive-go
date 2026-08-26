@@ -164,7 +164,7 @@ func Describe(path string, sliceSize uint64) (*FileDesc, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	st, err := f.Stat()
 	if err != nil {
 		return nil, err
@@ -216,8 +216,9 @@ func Describe(path string, sliceSize uint64) (*FileDesc, error) {
 
 func (s *Set) mainBody() []byte {
 	var b bytes.Buffer
-	binary.Write(&b, binary.LittleEndian, s.SliceSize)
-	binary.Write(&b, binary.LittleEndian, uint32(len(s.Files)))
+	// Writing to a bytes.Buffer cannot fail.
+	_ = binary.Write(&b, binary.LittleEndian, s.SliceSize)
+	_ = binary.Write(&b, binary.LittleEndian, uint32(len(s.Files)))
 	for _, f := range s.Files {
 		b.Write(f.ID[:])
 	}
@@ -231,7 +232,7 @@ func (s *Set) criticalPackets() []Packet {
 		b.Write(f.ID[:])
 		b.Write(f.MD5[:])
 		b.Write(f.MD516k[:])
-		binary.Write(&b, binary.LittleEndian, f.Size)
+		_ = binary.Write(&b, binary.LittleEndian, f.Size)
 		b.WriteString(f.Name)
 		pk = append(pk, Packet{SetID: s.SetID, Type: TypeFileDesc, Body: b.Bytes()})
 
@@ -239,7 +240,7 @@ func (s *Set) criticalPackets() []Packet {
 		c.Write(f.ID[:])
 		for _, sl := range f.Slices {
 			c.Write(sl.MD5[:])
-			binary.Write(&c, binary.LittleEndian, sl.CRC32)
+			_ = binary.Write(&c, binary.LittleEndian, sl.CRC32)
 		}
 		pk = append(pk, Packet{SetID: s.SetID, Type: TypeIFSC, Body: c.Bytes()})
 	}

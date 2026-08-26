@@ -105,7 +105,7 @@ func buildSet(t *testing.T, files []struct {
 	if err := set.WriteIndex(idx); err != nil {
 		t.Fatal(err)
 	}
-	idx.Close()
+	_ = idx.Close()
 
 	for v := 1; v <= count; v++ {
 		vf, err := os.Create(filepath.Join(dir, "set.p0"+string(rune('0'+v))))
@@ -115,7 +115,7 @@ func buildSet(t *testing.T, files []struct {
 		if err := set.WriteVolume(vf, uint64(v)); err != nil {
 			t.Fatal(err)
 		}
-		vf.Close()
+		_ = vf.Close()
 	}
 	return dir, index
 }

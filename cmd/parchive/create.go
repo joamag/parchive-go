@@ -106,7 +106,7 @@ func createPar2(c *config) int {
 			return exitFileIOError
 		}
 		if err := set.WriteVolume(f, exps); err != nil {
-			f.Close()
+			_ = f.Close()
 			fmt.Fprintln(os.Stderr, err)
 			return exitFileIOError
 		}
@@ -127,7 +127,7 @@ func createPar2(c *config) int {
 		return exitFileIOError
 	}
 	if err := set.WriteIndex(idx); err != nil {
-		idx.Close()
+		_ = idx.Close()
 		fmt.Fprintln(os.Stderr, err)
 		return exitFileIOError
 	}
@@ -166,11 +166,11 @@ func createPar1(c *config) int {
 		return exitFileIOError
 	}
 	if err := set.WriteIndex(idx); err != nil {
-		idx.Close()
+		_ = idx.Close()
 		fmt.Fprintln(os.Stderr, err)
 		return exitFileIOError
 	}
-	idx.Close()
+	_ = idx.Close()
 
 	base := strings.TrimSuffix(c.archive, filepath.Ext(c.archive))
 	for v := uint32(1); v <= count; v++ {
@@ -181,7 +181,7 @@ func createPar1(c *config) int {
 			return exitFileIOError
 		}
 		if err := set.WriteVolume(f, uint64(v)); err != nil {
-			f.Close()
+			_ = f.Close()
 			fmt.Fprintln(os.Stderr, err)
 			return exitFileIOError
 		}

@@ -111,33 +111,29 @@ func parseArgs(argv0 string, args []string) (*config, error) {
 	c.op = operationFor(base)
 
 	i := 0
+	if c.op == opNone && len(args) > 0 {
+		switch args[0] {
+		case "-h", "--help":
+			c.showHelp = true
+			return c, nil
+		case "-V":
+			c.showVersion = true
+			return c, nil
+		case "-VV":
+			c.showVersion, c.showCopyright = true, true
+			return c, nil
+		}
+		if op := operationFor(args[0]); op != opNone {
+			c.op = op
+			i++
+		}
+	}
 	if c.op == opNone {
-		for i < len(args) {
-			a := args[i]
-			switch {
-			case a == "-h" || a == "--help":
-				c.showHelp = true
-				return c, nil
-			case a == "-V":
-				c.showVersion = true
-				return c, nil
-			case a == "-VV":
-				c.showVersion, c.showCopyright = true, true
-				return c, nil
-			}
-			if op := operationFor(a); op != opNone {
-				c.op = op
-				i++
-			}
-			break
+		if len(args) == 0 {
+			c.showHelp = true
+			return c, nil
 		}
-		if c.op == opNone {
-			if len(args) == 0 {
-				c.showHelp = true
-				return c, nil
-			}
-			return nil, badUsage("Invalid operation specified: %s", args[0])
-		}
+		return nil, badUsage("Invalid operation specified: %s", args[0])
 	}
 
 	literal := false
@@ -423,7 +419,7 @@ func readFileList(path string) ([]string, error) {
 		if err != nil {
 			return nil, badUsage("Failed to read filelist: %s", path)
 		}
-		defer f.Close()
+		defer func() { _ = f.Close() }()
 		in = f
 	}
 	var out []string

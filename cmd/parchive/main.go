@@ -71,7 +71,7 @@ It implements the Parity Volume Set specifications 1.0 and 2.0.
 `
 
 func usage(w *os.File) {
-	fmt.Fprint(w, `Usage:
+	_, _ = fmt.Fprint(w, `Usage:
   parchive -h  : show this help
   parchive -V  : show version
   parchive -VV : show version and copyright

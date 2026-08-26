@@ -196,9 +196,11 @@ func (s *Set) rewriteAll(status []FileStatus, found map[int]located, recovered m
 	type pending struct{ tmp, final string }
 	var done []pending
 
+	// Best effort: the originals are untouched until the renames at the end, so
+	// a leftover temporary file is untidy rather than dangerous.
 	cleanup := func() {
 		for _, p := range done {
-			os.Remove(p.tmp)
+			_ = os.Remove(p.tmp)
 		}
 	}
 
@@ -227,18 +229,18 @@ func (s *Set) rewriteAll(status []FileStatus, found map[int]located, recovered m
 			switch loc, ok := found[g]; {
 			case ok:
 				if err := src.read(loc, buf); err != nil {
-					out.Close()
+					_ = out.Close()
 					cleanup()
-					os.Remove(tmp)
+					_ = os.Remove(tmp)
 					return err
 				}
 				data = buf
 			default:
 				rec, ok := recovered[g]
 				if !ok {
-					out.Close()
+					_ = out.Close()
 					cleanup()
-					os.Remove(tmp)
+					_ = os.Remove(tmp)
 					return fmt.Errorf("par2: slice %d of %q could not be recovered", j, fd.Name)
 				}
 				data = rec
@@ -247,16 +249,16 @@ func (s *Set) rewriteAll(status []FileStatus, found map[int]located, recovered m
 				data = data[:n]
 			}
 			if _, err := out.Write(data); err != nil {
-				out.Close()
+				_ = out.Close()
 				cleanup()
-				os.Remove(tmp)
+				_ = os.Remove(tmp)
 				return err
 			}
 			written += uint64(len(data))
 		}
 		if err := out.Close(); err != nil {
 			cleanup()
-			os.Remove(tmp)
+			_ = os.Remove(tmp)
 			return err
 		}
 		done = append(done, pending{tmp, st.Path})
@@ -319,7 +321,7 @@ func (r *sliceReader) read(loc located, buf []byte) error {
 
 func (r *sliceReader) Close() {
 	if r.f != nil {
-		r.f.Close()
+		_ = r.f.Close()
 		r.f, r.path = nil, ""
 	}
 }

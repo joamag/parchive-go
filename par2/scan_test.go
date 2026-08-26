@@ -45,7 +45,7 @@ func damageSet(t *testing.T, files map[string]int, sliceSize uint64, count int) 
 	if err := set.WriteIndex(idx); err != nil {
 		t.Fatal(err)
 	}
-	idx.Close()
+	_ = idx.Close()
 
 	exps := make([]uint32, count)
 	for i := range exps {
@@ -58,7 +58,7 @@ func damageSet(t *testing.T, files map[string]int, sliceSize uint64, count int) 
 	if err := set.WriteVolume(vol, exps); err != nil {
 		t.Fatal(err)
 	}
-	vol.Close()
+	_ = vol.Close()
 	return dir, want
 }
 

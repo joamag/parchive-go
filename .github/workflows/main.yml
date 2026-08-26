@@ -35,6 +35,22 @@ jobs:
         run: go test -race -coverprofile=coverage.out ./...
       - name: Print coverage
         run: go tool cover -func=coverage.out | tail -1
+  lint:
+    name: Lint
+    timeout-minutes: 10
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code from repository
+        uses: actions/checkout@v7
+      - name: Setup Go
+        uses: actions/setup-go@v7
+        with:
+          go-version: "1.24"
+          cache: false
+      - name: Run golangci-lint
+        uses: golangci/golangci-lint-action@v9
+        with:
+          version: latest
   interop:
     name: Interop with par2cmdline
     timeout-minutes: 10

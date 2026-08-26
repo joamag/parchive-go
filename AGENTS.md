@@ -73,7 +73,19 @@ Lint all code before committing:
 
 ```bash
 go vet ./...
+golangci-lint run ./...
 ```
+
+`golangci-lint` is configured by `.golangci.yml` and runs as its own job in the
+Main Workflow. Install it with:
+
+```bash
+go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest
+```
+
+The only exclusion in the config is `ST1005` under `cmd/parchive/`, because a
+few error strings reproduce par2cmdline's wording verbatim and so break the
+usual Go convention on purpose. Do not widen it to silence a real finding.
 
 ## Style Guide
 
@@ -161,4 +173,4 @@ To create a new release follow the following steps:
 
 ## License
 
-Parchive-Go is licensed under the [Apache License, Version 2.0](http://www.apache.org/licenses/).
+parchive-go is licensed under the [Apache License, Version 2.0](http://www.apache.org/licenses/).

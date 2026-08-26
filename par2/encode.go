@@ -29,7 +29,7 @@ func identify(path string, sliceSize uint64) (*FileDesc, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	st, err := f.Stat()
 	if err != nil {
 		return nil, err
@@ -117,7 +117,7 @@ func (e *encoder) file(path string, fd *FileDesc, base int) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	per := batchSlices
 	if e.sliceSize > 0 {

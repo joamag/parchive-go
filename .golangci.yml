@@ -1,0 +1,19 @@
+# golangci-lint is what Go Report Card recommended when it was sunset, and it is
+# what the Lint job in the Main Workflow runs.
+version: "2"
+
+linters:
+  default: standard
+  exclusions:
+    rules:
+      # Several messages reproduce par2cmdline's wording verbatim so that a
+      # script reading stderr sees exactly what it expects, which means they
+      # break the usual Go convention on error strings.
+      - path: cmd/parchive/
+        linters:
+          - staticcheck
+        text: "ST1005"
+
+formatters:
+  enable:
+    - gofmt

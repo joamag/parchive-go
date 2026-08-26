@@ -138,7 +138,7 @@ func buildSet(t *testing.T, files map[string]int, sliceSize uint64, count int) (
 	if err := set.WriteIndex(idx); err != nil {
 		t.Fatal(err)
 	}
-	idx.Close()
+	_ = idx.Close()
 
 	exps := make([]uint32, count)
 	for i := range exps {
@@ -151,7 +151,7 @@ func buildSet(t *testing.T, files map[string]int, sliceSize uint64, count int) (
 	if err := set.WriteVolume(vf, exps); err != nil {
 		t.Fatal(err)
 	}
-	vf.Close()
+	_ = vf.Close()
 	return dir, index
 }
 
