@@ -1,0 +1,98 @@
+name: Main Workflow
+on:
+  push:
+  pull_request:
+  schedule:
+    - cron: "0 0 * * 0"
+jobs:
+  build:
+    name: Build
+    timeout-minutes: 10
+    strategy:
+      matrix:
+        go-version: [
+          "1.21",
+          "1.22",
+          "1.23",
+          "1.24"
+        ]
+    runs-on: ubuntu-latest
+    container: golang:${{ matrix.go-version }}
+    steps:
+      - name: Checkout code from repository
+        uses: actions/checkout@v4
+      - name: Print Go information
+        run: go version
+      - name: Verify formatting
+        run: test -z "$(gofmt -l .)" || (gofmt -l . && exit 1)
+      - name: Run go vet
+        run: go vet ./...
+      - name: Build packages
+        run: go build -v ./...
+      - name: Run unit tests
+        run: go test -race -coverprofile=coverage.out ./...
+      - name: Print coverage
+        run: go tool cover -func=coverage.out | tail -1
+  interop:
+    name: Interop with par2cmdline
+    timeout-minutes: 10
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code from repository
+        uses: actions/checkout@v4
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
+      - name: Install par2cmdline
+        run: sudo apt-get update && sudo apt-get install -y par2
+      - name: Build parchive
+        run: go build -o parchive ./cmd/parchive
+      - name: PAR2, parchive creates and par2cmdline repairs
+        run: |
+          mkdir -p interop-par2 && cd interop-par2
+          head -c 400000 /dev/urandom > data.bin
+          head -c 90000 /dev/urandom > extra.bin
+          cp data.bin data.orig && cp extra.bin extra.orig
+          ../parchive create -s 8192 -n 30 set.par2 data.bin extra.bin
+          dd if=/dev/zero of=data.bin bs=1 seek=1000 count=20000 conv=notrunc
+          rm -f extra.bin
+          par2 repair set.par2
+          cmp data.bin data.orig
+          cmp extra.bin extra.orig
+      - name: PAR2, par2cmdline creates and parchive repairs
+        run: |
+          mkdir -p interop-par2-rev && cd interop-par2-rev
+          head -c 400000 /dev/urandom > data.bin
+          head -c 90000 /dev/urandom > extra.bin
+          cp data.bin data.orig && cp extra.bin extra.orig
+          par2 create -s8192 -c30 -n1 -q set.par2 data.bin extra.bin
+          dd if=/dev/zero of=data.bin bs=1 seek=1000 count=20000 conv=notrunc
+          rm -f extra.bin
+          ../parchive repair set.par2
+          cmp data.bin data.orig
+          cmp extra.bin extra.orig
+      - name: PAR1, parchive creates and par2cmdline repairs
+        run: |
+          mkdir -p interop-par1 && cd interop-par1
+          head -c 200000 /dev/urandom > one.dat
+          head -c 60000 /dev/urandom > two.dat
+          cp one.dat one.orig && cp two.dat two.orig
+          ../parchive create -n 4 set.par one.dat two.dat
+          dd if=/dev/zero of=one.dat bs=1 seek=500 count=5000 conv=notrunc
+          rm -f two.dat
+          par2 repair set.par
+          cmp one.dat one.orig
+          cmp two.dat two.orig
+      - name: PAR1, round trip within parchive
+        run: |
+          mkdir -p interop-par1-self && cd interop-par1-self
+          head -c 150000 /dev/urandom > a.dat
+          head -c 40000 /dev/urandom > b.dat
+          cp a.dat a.orig && cp b.dat b.orig
+          ../parchive create -n 3 set.par a.dat b.dat
+          rm -f b.dat
+          dd if=/dev/zero of=a.dat bs=1 seek=100 count=4000 conv=notrunc
+          ../parchive repair set.par
+          cmp a.dat a.orig
+          cmp b.dat b.orig

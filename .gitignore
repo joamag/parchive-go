@@ -1,0 +1,17 @@
+# binaries
+/parchive
+/cmd/parchive/parchive
+
+# test and coverage artifacts
+*.out
+*.test
+
+# generated recovery sets
+*.par2
+*.par
+*.p[0-9][0-9]
+
+# editor and OS noise
+.DS_Store
+.idea/
+.vscode/
