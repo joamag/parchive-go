@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="Parchive-Go">
+  <defs>
+    <linearGradient id="cBg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#132434"/><stop offset="1" stop-color="#0a131c"/>
+    </linearGradient>
+    <linearGradient id="cCy" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#6FE3F7"/><stop offset="1" stop-color="#00ADD8"/>
+    </linearGradient>
+    <linearGradient id="cGr" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#5BE7A9"/><stop offset="1" stop-color="#30A46C"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#cBg)"/>
+  <rect x="8" y="8" width="496" height="496" rx="106" fill="none" stroke="#00ADD8" stroke-opacity=".22" stroke-width="3"/>
+  <g transform="translate(104 104)">
+    <g fill="url(#cCy)">
+      <rect x="0"   y="0"   width="64" height="64" rx="14"/>
+      <rect x="80"  y="0"   width="64" height="64" rx="14"/>
+      <rect x="160" y="0"   width="64" height="64" rx="14"/>
+      <rect x="240" y="0"   width="64" height="64" rx="14"/>
+      <rect x="0"   y="80"  width="64" height="64" rx="14"/>
+      <rect x="80"  y="80"  width="64" height="64" rx="14"/>
+      <rect x="240" y="80"  width="64" height="64" rx="14"/>
+      <rect x="0"   y="160" width="64" height="64" rx="14"/>
+      <rect x="160" y="160" width="64" height="64" rx="14"/>
+      <rect x="240" y="160" width="64" height="64" rx="14"/>
+      <rect x="0"   y="240" width="64" height="64" rx="14"/>
+      <rect x="80"  y="240" width="64" height="64" rx="14"/>
+      <rect x="160" y="240" width="64" height="64" rx="14"/>
+      <rect x="240" y="240" width="64" height="64" rx="14"/>
+    </g>
+    <!-- the block being rebuilt -->
+    <rect x="160" y="80" width="64" height="64" rx="14" fill="url(#cGr)"/>
+    <path d="M175 112 l13 14 l23 -26" fill="none" stroke="#08131b" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
+    <!-- the block still missing -->
+    <rect x="80" y="160" width="64" height="64" rx="14" fill="#0a131c" stroke="#F5A623" stroke-width="4" stroke-dasharray="8 7"/>
+  </g>
+</svg>

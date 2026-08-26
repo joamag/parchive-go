@@ -4,8 +4,6 @@
   **Simple (yet complete) PAR1 and PAR2 recovery sets in pure Go 🛟**
 </div>
 
-<img src="res/pipeline.svg" alt="How Parchive-Go creates, verifies and repairs a recovery set" width="820" />
-
 **Parchive-Go has been written for educational purposes and shouldn't be taken too seriously.** Use it at your own risk!
 
 ## Description
@@ -95,7 +93,77 @@ The command line follows [par2cmdline](https://github.com/Parchive/par2cmdline):
 
 <img src="res/demo.svg" alt="Creating, damaging, verifying and repairing a recovery set" width="760" />
 
-### Create
+```text
+parchive c(reate) [options] <PAR2 file> [files]
+parchive v(erify) [options] <PAR2 file> [files]
+parchive r(epair) [options] <PAR2 file> [files]
+```
+
+Options come after the command, and their values are joined to the letter: `-s4096`, not `-s 4096`. The recovery file is the first name that is not an option; anything after it is an input file. A name given without an extension gains `.par2`, and doubles as the input file when no others are named, so `parchive create movie.mkv` protects `movie.mkv` with `movie.mkv.par2`.
+
+Symlinking the binary to `par2create`, `par2verify` or `par2repair` takes the operation from the program name, as par2cmdline does.
+
+### Commands
+
+| Command | Aliases | What it does |
+| --- | --- | --- |
+| `create` | `c`, `par2create` | Compute recovery data for the given files and write a recovery set |
+| `verify` | `v`, `par2verify` | Check the files a recovery set describes and report what is wrong |
+| `repair` | `r`, `par2repair` | Verify, then rebuild whatever is damaged or missing |
+
+### Options for every command
+
+| Option | Default | Meaning |
+| --- | --- | --- |
+| `-a<file>` | first filename | Name of the main recovery file. May also be written `-a <file>` |
+| `-B<path>` | the recovery file's directory | Directory the data files are resolved against |
+| `-v`, `-v -v` | off | More detail; twice adds per-file diagnostics |
+| `-q`, `-q -q` | off | Less detail; twice is silence |
+| `-m<n>` | half of RAM | Memory budget in MB. Accepted for compatibility; this implementation streams, so its footprint is set by the block size and count |
+| `--` | | Everything after this is a filename, even if it starts with a dash |
+| `@<file>` | | Read filenames from a text file, one per line. A bare `@` reads standard input |
+| `-h` / `-V` / `-VV` | | Help, version, version with copyright |
+
+### Options for `create`
+
+| Option | Default | Meaning |
+| --- | --- | --- |
+| `-b<n>` | `2000` | Split the input into about this many blocks |
+| `-s<n>` | derived from `-b` | Block size in bytes, a multiple of 4. Takes precedence over `-b` |
+| `-r<n>` | `5` | Redundancy as a percentage of the input |
+| `-r<c><n>` | | Redundancy as a target size: `-rk64`, `-rm100`, `-rg2` |
+| `-c<n>` | derived from `-r` | Exact number of recovery blocks. Do not combine with `-r` |
+| `-f<n>` | `0` | Exponent the first recovery block gets, for extending an existing set |
+| `-u` | off | Give every recovery file the same size |
+| `-l` | off | Cap recovery file size at the largest input file |
+| `-n<n>` | about log2 of the block count | Number of recovery files, at most 31. Implies `-u` |
+| `-R` | off | Recurse into any directory named on the command line |
+
+Block size and redundancy are two ways of asking the same question. `-b` and `-r` describe what you want in relative terms and let the tool work out the rest; `-s` and `-c` state the numbers outright. A larger block size means fewer, coarser blocks: cheaper bookkeeping, but each damaged byte costs a bigger block to repair.
+
+### Options for `verify` and `repair`
+
+| Option | Default | Meaning |
+| --- | --- | --- |
+| `-p` | off | Delete the recovery files once the data is known to be good |
+| `-N` | off | Tolerate unrecognised data while searching. Accepted for compatibility; the search for misplaced blocks always runs here |
+| `-S<n>` | `64` | How far from its expected position a block may be found. Accepted for compatibility |
+
+### Examples
+
+Protect a file with the defaults, which is 5% redundancy over about 2000 blocks. The recovery file is named after the input, so nothing else needs saying:
+
+```bash
+parchive create movie.mkv
+```
+
+```text
+movie.mkv.par2  movie.mkv.vol000+01.par2  movie.mkv.vol001+02.par2
+movie.mkv.vol003+04.par2  movie.mkv.vol007+08.par2  movie.mkv.vol015+16.par2
+movie.mkv.vol031+32.par2  movie.mkv.vol063+37.par2
+```
+
+Protect several files with an explicit block size and count:
 
 ```bash
 parchive create -s4096 -c20 archive.par2 photo.raw notes.tar
@@ -109,20 +177,24 @@ Recovery block count: 20
 Recovery file count: 5
 ```
 
-`-s` sets the block size and `-c` the number of recovery blocks. Without them the defaults are 2000 blocks and 5% redundancy, exactly as par2cmdline chooses them, and the recovery blocks are spread across exponentially sized volumes:
+The recovery blocks are spread across exponentially sized volumes, so a small amount of damage only needs a small download:
 
 ```text
 archive.par2  archive.vol00+1.par2  archive.vol01+2.par2
 archive.vol03+4.par2  archive.vol07+8.par2  archive.vol15+5.par2
 ```
 
-For a PAR1 set, name the output `.par`. par2cmdline can repair those but not create them, so this is the one place the two tools differ in what they accept:
+Ten percent redundancy in three equally sized recovery files, recursing into a directory:
 
 ```bash
-parchive create -c5 archive.par photo.raw notes.tar
+parchive create -r10 -n3 -R backup.par2 photos/
 ```
 
-### Verify
+```text
+backup.par2  backup.vol000+67.par2  backup.vol067+67.par2  backup.vol134+66.par2
+```
+
+Check a set:
 
 ```bash
 parchive verify archive.par2
@@ -144,13 +216,17 @@ Repair is possible.
 
 `photo.raw` there had a byte inserted at the front. Every block moved off its offset, yet all ten were still found, so putting it right costs no recovery data. Only the two blocks genuinely lost from `notes.tar` need parity.
 
-### Repair
+Put it right, then clear the recovery files away:
 
 ```bash
-parchive repair archive.par2
+parchive repair -p archive.par2
 ```
 
-Damaged blocks are rebuilt in place and missing files are recreated from scratch, as long as there are at least as many recovery blocks as there are blocks that could not be found anywhere.
+For a PAR1 set, name the recovery file `.par`. par2cmdline can repair those but not create them, which is the one place the two tools differ in what they accept:
+
+```bash
+parchive create -c5 archive.par photo.raw notes.tar
+```
 
 ### Exit codes
 
@@ -165,36 +241,6 @@ The values par2cmdline defines, so wrapper scripts behave the same:
 | `4` | The recovery files did not describe the data files |
 | `5` | Repair ran but the files are still damaged |
 | `6` | A file could not be read or written |
-
-### Options
-
-```text
-Options: (all uses)
-  -a<file> : Set the main PAR2 archive name
-  -B<path> : Set the basepath to use as reference for the datafiles
-  -v [-v]  : Be more verbose
-  -q [-q]  : Be more quiet (-q -q gives silence)
-  -m<n>    : Memory (in MB) to use
-  --       : Treat all following arguments as filenames
-Options: (verify or repair)
-  -p       : Purge backup files and par files on successful recovery
-  -N       : Data skipping (find badly mispositioned data blocks)
-  -S<n>    : Skip leaway (distance +/- from expected block position)
-Options: (create)
-  -b<n>    : Set the Block-Count (default 2000)
-  -s<n>    : Set the Block-Size (don't use both -b and -s)
-  -r<n>    : Level of redundancy (%, default 5%)
-  -r<c><n> : Redundancy target size, <c>=g(iga),m(ega),k(ilo) bytes
-  -c<n>    : Recovery Block-Count (don't use both -r and -c)
-  -f<n>    : First Recovery-Block-Number (default 0)
-  -u       : Uniform recovery file sizes (default is variable)
-  -l       : Limit size of recovery files (don't use both -u and -l)
-  -n<n>    : Number of recovery files (max 31)
-  -R       : Recurse into subdirectories
-   @       : Process a listing of files specified in text (file) input
-```
-
-Symlinking the binary to `par2create`, `par2verify` or `par2repair` selects the operation from the program name, the same way par2cmdline does.
 
 ### Library
 
@@ -254,6 +300,8 @@ if err := set.Repair("."); err != nil {
 The `par1` package mirrors this shape, with `par1.Create`, `par1.Parse`, `Verify` and `Repair`.
 
 ## How it works
+
+<img src="res/pipeline.svg" alt="How Parchive-Go creates, verifies and repairs a recovery set" width="820" />
 
 Both formats build on the same idea: treat the data as a matrix over a finite field and store enough extra rows that any missing rows can be solved for.
 
