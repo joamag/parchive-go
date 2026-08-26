@@ -1,48 +1,36 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="parchive-go logo">
-  <defs>
-    <linearGradient id="disc" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#12202e"/>
-      <stop offset="1" stop-color="#0a131c"/>
-    </linearGradient>
-    <linearGradient id="cy" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#5DD8F0"/>
-      <stop offset="1" stop-color="#00ADD8"/>
-    </linearGradient>
-  </defs>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="Parchive-Go">
+<defs>
+  <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0" stop-color="#111114"/>
+    <stop offset="1" stop-color="#08080A"/>
+  </linearGradient>
+  <linearGradient id="cy" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0" stop-color="#7FE9FA"/>
+    <stop offset="1" stop-color="#00ADD8"/>
+  </linearGradient>
+  <linearGradient id="gr" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0" stop-color="#5BE7A9"/>
+    <stop offset="1" stop-color="#30A46C"/>
+  </linearGradient>
+</defs>
 
-  <rect width="512" height="512" rx="112" fill="url(#disc)"/>
-  <rect x="8" y="8" width="496" height="496" rx="106" fill="none" stroke="#00ADD8" stroke-opacity=".22" stroke-width="3"/>
+  <!-- plate -->
+  <rect width="512" height="512" rx="112" fill="url(#g)"/>
+  <rect x="8" y="8" width="496" height="496" rx="106" fill="none" stroke="#00ADD8" stroke-opacity=".3" stroke-width="3"/>
 
-  <!-- eight data slices around a ring, one of them missing and re-derived -->
-  <g transform="translate(256 256)">
-    <circle r="150" fill="none" stroke="#00ADD8" stroke-opacity=".14" stroke-width="2" stroke-dasharray="5 9"/>
+  <!-- data blocks -->
+  <rect x="116" y="116" width="84" height="84" rx="20" fill="url(#cy)"/>
+  <rect x="214" y="116" width="84" height="84" rx="20" fill="url(#cy)"/>
+  <rect x="312" y="116" width="84" height="84" rx="20" fill="url(#cy)"/>
+  <rect x="116" y="214" width="84" height="84" rx="20" fill="url(#cy)"/>
+  <rect x="312" y="214" width="84" height="84" rx="20" fill="url(#cy)"/>
+  <rect x="116" y="312" width="84" height="84" rx="20" fill="url(#cy)"/>
+  <rect x="214" y="312" width="84" height="84" rx="20" fill="url(#cy)"/>
 
-    <!-- surviving data slices -->
-    <g fill="url(#cy)">
-      <g transform="rotate(-90)   translate(0 -150)"><rect x="-26" y="-19" width="52" height="38" rx="8" transform="rotate(90)"/></g>
-      <g transform="rotate(-45)   translate(0 -150)"><rect x="-26" y="-19" width="52" height="38" rx="8" transform="rotate(45)"/></g>
-      <g transform="rotate(0)     translate(0 -150)"><rect x="-26" y="-19" width="52" height="38" rx="8"/></g>
-      <g transform="rotate(45)    translate(0 -150)"><rect x="-26" y="-19" width="52" height="38" rx="8" transform="rotate(-45)"/></g>
-      <g transform="rotate(90)    translate(0 -150)"><rect x="-26" y="-19" width="52" height="38" rx="8" transform="rotate(-90)"/></g>
-      <g transform="rotate(180)   translate(0 -150)"><rect x="-26" y="-19" width="52" height="38" rx="8" transform="rotate(180)"/></g>
-      <g transform="rotate(225)   translate(0 -150)"><rect x="-26" y="-19" width="52" height="38" rx="8" transform="rotate(135)"/></g>
-    </g>
+  <!-- a block that was lost and has been rebuilt -->
+  <rect x="214" y="214" width="84" height="84" rx="20" fill="url(#gr)"/>
+  <path d="M234 256 l15 16 l29 -32" fill="none" stroke="#08080A" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
 
-    <!-- the lost slice: an empty socket being refilled -->
-    <g transform="rotate(135) translate(0 -150)">
-      <g transform="rotate(-135)">
-        <rect x="-26" y="-19" width="52" height="38" rx="8" fill="#0a131c" stroke="#F5A623" stroke-width="3" stroke-dasharray="6 5"/>
-      </g>
-    </g>
-
-    <!-- parity core: the XOR/GF(2^16) sum that rebuilds it -->
-    <circle r="66" fill="#0a131c" stroke="#00ADD8" stroke-width="4"/>
-    <circle r="66" fill="none" stroke="#5DD8F0" stroke-opacity=".35" stroke-width="10"/>
-    <path d="M-30 0 H30 M0 -30 V30" stroke="#00ADD8" stroke-width="9" stroke-linecap="round"/>
-    <circle r="30" fill="none" stroke="#00ADD8" stroke-width="9"/>
-
-    <!-- reconstruction arrow: the parity core refills the lost slice -->
-    <path d="M52 52 L86 86" stroke="#F5A623" stroke-width="8" stroke-linecap="round"/>
-    <path d="M104 104 l-30 -4 l4 30 z" fill="#F5A623"/>
-  </g>
+  <!-- a block still waiting on recovery data -->
+  <rect x="312" y="312" width="84" height="84" rx="20" fill="none" stroke="#4A4A52" stroke-width="6" stroke-dasharray="11 9"/>
 </svg>

@@ -1,10 +1,10 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 940 512" width="940" height="512" role="img" aria-label="Terminal session: parchive create, verify and repair">
   <defs>
     <linearGradient id="tbar" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#22303c"/><stop offset="1" stop-color="#1a2732"/>
+      <stop offset="0" stop-color="#26262C"/><stop offset="1" stop-color="#1A1A1F"/>
     </linearGradient>
   </defs>
-  <rect width="940" height="512" rx="12" fill="#0d1620"/>
+  <rect width="940" height="512" rx="12" fill="#0B0B0E"/>
   <path d="M0 12 A12 12 0 0 1 12 0 H928 A12 12 0 0 1 940 12 V40 H0 Z" fill="url(#tbar)"/>
   <circle cx="24" cy="20" r="6" fill="#ff5f57"/>
   <circle cx="46" cy="20" r="6" fill="#febc2e"/>
