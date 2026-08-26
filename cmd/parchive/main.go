@@ -1,278 +1,124 @@
 // Command parchive creates, verifies and repairs PAR1 and PAR2 recovery sets.
 //
-//	parchive create -s 4096 -n 20 archive.par2 file1 file2 ...
-//	parchive create -n 5 archive.par file1 file2 ...
-//	parchive verify archive.par2
-//	parchive repair archive.par2
+//	parchive c(reate) [options] <PAR2 file> [files]
+//	parchive v(erify) [options] <PAR2 file> [files]
+//	parchive r(epair) [options] <PAR2 file> [files]
 //
-// The format is chosen from the extension of the recovery file: ".par2" for
-// PAR2, ".par" for PAR1.
+// The command line, the exit codes and the layout of the files it writes follow
+// par2cmdline, so a script written against that tool works unchanged here.
 package main
 
 import (
-	"flag"
 	"fmt"
 	"os"
-	"path/filepath"
-	"sort"
-	"strings"
-
-	"github.com/joamag/parchive-go/par1"
-	"github.com/joamag/parchive-go/par2"
 )
 
-const creator = "parchive-go"
+// version identifies this client in the creator packet of every set it writes.
+const version = "0.1.0"
+
+// Exit codes, matching par2cmdline's Result enum.
+const (
+	exitSuccess           = 0
+	exitRepairPossible    = 1 // damaged, but enough recovery data exists
+	exitRepairNotPossible = 2 // damaged, and not enough recovery data exists
+	exitInvalidArgs       = 3
+	exitInsufficientData  = 4 // the recovery files did not describe the data
+	exitRepairFailed      = 5 // repair ran but the files are still wrong
+	exitFileIOError       = 6
+	exitLogicError        = 7
+	exitMemoryError       = 8
+)
 
 func main() {
-	if len(os.Args) < 2 {
-		usage()
-		os.Exit(2)
-	}
-	var err error
-	switch os.Args[1] {
-	case "create":
-		err = create(os.Args[2:])
-	case "verify":
-		err = check(os.Args[2:], false)
-	case "repair":
-		err = check(os.Args[2:], true)
-	case "-h", "--help", "help":
-		usage()
-		return
-	default:
-		err = fmt.Errorf("unknown command %q", os.Args[1])
-	}
-	if err != nil {
-		fmt.Fprintln(os.Stderr, "error:", err)
-		os.Exit(1)
-	}
+	os.Exit(run(os.Args))
 }
 
-func usage() {
-	fmt.Fprint(os.Stderr, `usage: parchive create|verify|repair ...
+func run(argv []string) int {
+	cfg, err := parseArgs(argv[0], argv[1:])
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return exitInvalidArgs
+	}
+	switch {
+	case cfg.showHelp:
+		usage(os.Stdout)
+		return exitSuccess
+	case cfg.showVersion:
+		fmt.Printf("parchive-go version %s\n", version)
+		if cfg.showCopyright {
+			fmt.Print(copyright)
+		}
+		return exitSuccess
+	}
 
-  parchive create [-s size] [-n count] out.par2 files...   create a PAR2 set
-  parchive create [-n count] out.par files...              create a PAR1 set
-  parchive verify out.par2                                 check every file
-  parchive repair out.par2                                 rebuild what is bad
+	switch cfg.op {
+	case opCreate:
+		return create(cfg)
+	case opVerify:
+		return check(cfg, false)
+	case opRepair:
+		return check(cfg, true)
+	}
+	usage(os.Stderr)
+	return exitInvalidArgs
+}
 
-Verify and repair find slices that moved because bytes were inserted or
-deleted. Pass -no-scan to check only the offsets slices should be at.
+const copyright = `
+Copyright (c) 2026 Joao Magalhaes.
 
-The format follows the extension of the recovery file: .par2 or .par.
+parchive-go is distributed under the Apache License, Version 2.0.
+It implements the Parity Volume Set specifications 1.0 and 2.0.
+`
+
+func usage(w *os.File) {
+	fmt.Fprint(w, `Usage:
+  parchive -h  : show this help
+  parchive -V  : show version
+  parchive -VV : show version and copyright
+
+  parchive c(reate) [options] <PAR2 file> [files] : Create PAR2 files
+  parchive v(erify) [options] <PAR2 file> [files] : Verify files using PAR2 file
+  parchive r(epair) [options] <PAR2 file> [files] : Repair files using PAR2 files
+
+You may also leave out the "c", "v", and "r" commands by using "par2create",
+"par2verify", or "par2repair" instead.
+
+Options: (all uses)
+  -a<file> : Set the main PAR2 archive name
+  -B<path> : Set the basepath to use as reference for the datafiles
+  -v [-v]  : Be more verbose
+  -q [-q]  : Be more quiet (-q -q gives silence)
+  -m<n>    : Memory (in MB) to use
+  --       : Treat all following arguments as filenames
+Options: (verify or repair)
+  -p       : Purge backup files and par files on successful recovery or
+             when no recovery is needed
+  -N       : Data skipping (find badly mispositioned data blocks)
+  -S<n>    : Skip leaway (distance +/- from expected block position, default 64)
+Options: (create)
+  -b<n>    : Set the Block-Count (default 2000)
+  -s<n>    : Set the Block-Size (don't use both -b and -s)
+  -r<n>    : Level of redundancy (%, default 5%)
+  -r<c><n> : Redundancy target size, <c>=g(iga),m(ega),k(ilo) bytes
+  -c<n>    : Recovery Block-Count (don't use both -r and -c)
+  -f<n>    : First Recovery-Block-Number (default 0)
+  -u       : Uniform recovery file sizes (default is variable)
+  -l       : Limit size of recovery files (don't use both -u and -l)
+  -n<n>    : Number of recovery files (max 31) (don't use both -n and -l)
+  -R       : Recurse into subdirectories
+             (Be aware of wildcard shell expansion)
+   @       : Process a listing of files specified in text (file) input
+             (eg. @filelist.txt, or bare @ to read from stdin)
+
+Example:
+   parchive repair *.par2
 `)
 }
 
-// isPar1 reports whether the recovery file names a PAR1 set.
-func isPar1(name string) bool {
-	return strings.EqualFold(filepath.Ext(name), ".par")
-}
-
-func create(args []string) error {
-	fs := flag.NewFlagSet("create", flag.ExitOnError)
-	sliceSize := fs.Uint64("s", 4096, "slice size in bytes, a multiple of 4 (PAR2 only)")
-	count := fs.Int("n", 10, "number of recovery slices (PAR2) or volumes (PAR1)")
-	fs.Parse(args)
-	if fs.NArg() < 2 {
-		return fmt.Errorf("usage: create [-s size] [-n count] out.par2 files...")
+// out prints at or above the given noise level, which is how the -v and -q
+// options take effect.
+func (c *config) out(level noise, format string, a ...any) {
+	if c.noise >= level {
+		fmt.Printf(format, a...)
 	}
-	out, inputs := fs.Arg(0), fs.Args()[1:]
-	if isPar1(out) {
-		return createPar1(out, inputs, *count)
-	}
-	return createPar2(out, inputs, *sliceSize, *count)
-}
-
-func createPar2(out string, inputs []string, sliceSize uint64, count int) error {
-	set, err := par2.Create(inputs, sliceSize, 0, count, creator)
-	if err != nil {
-		return err
-	}
-	idx, err := os.Create(out)
-	if err != nil {
-		return err
-	}
-	if err := set.WriteIndex(idx); err != nil {
-		idx.Close()
-		return err
-	}
-	if err := idx.Close(); err != nil {
-		return err
-	}
-
-	exps := make([]uint32, count)
-	for i := range exps {
-		exps[i] = uint32(i)
-	}
-	vol := fmt.Sprintf("%s.vol%03d+%02d.par2", strings.TrimSuffix(out, ".par2"), 0, count)
-	vf, err := os.Create(vol)
-	if err != nil {
-		return err
-	}
-	defer vf.Close()
-	if err := set.WriteVolume(vf, exps); err != nil {
-		return err
-	}
-	fmt.Printf("wrote %s and %s (%d input slices, %d recovery slices)\n",
-		out, vol, set.TotalSlices(), count)
-	return nil
-}
-
-func createPar1(out string, inputs []string, count int) error {
-	set, err := par1.Create(inputs, count, 0)
-	if err != nil {
-		return err
-	}
-	idx, err := os.Create(out)
-	if err != nil {
-		return err
-	}
-	if err := set.WriteIndex(idx); err != nil {
-		idx.Close()
-		return err
-	}
-	if err := idx.Close(); err != nil {
-		return err
-	}
-
-	base := strings.TrimSuffix(out, filepath.Ext(out))
-	for v := 1; v <= count; v++ {
-		name := fmt.Sprintf("%s.p%02d", base, v)
-		vf, err := os.Create(name)
-		if err != nil {
-			return err
-		}
-		if err := set.WriteVolume(vf, uint64(v)); err != nil {
-			vf.Close()
-			return err
-		}
-		if err := vf.Close(); err != nil {
-			return err
-		}
-	}
-	fmt.Printf("wrote %s and %d volumes (%d files, %d bytes each)\n",
-		out, count, len(set.Files), set.VolumeSize)
-	return nil
-}
-
-func check(args []string, repair bool) error {
-	name := "verify"
-	if repair {
-		name = "repair"
-	}
-	fs := flag.NewFlagSet(name, flag.ExitOnError)
-	noScan := fs.Bool("no-scan", false,
-		"only look for slices at their own offsets, skipping the search for misplaced data")
-	fs.Parse(args)
-	if fs.NArg() < 1 {
-		return fmt.Errorf("usage: %s [-no-scan] file.par2", name)
-	}
-	target := fs.Arg(0)
-	dir := filepath.Dir(target)
-	if isPar1(target) {
-		return checkPar1(target, dir, repair)
-	}
-	return checkPar2(target, dir, repair, par2.Options{NoScan: *noScan})
-}
-
-// siblings collects every companion volume next to the given recovery file, so
-// that the recovery data is available and not just the index.
-func siblings(target, pattern string) []string {
-	base := strings.TrimSuffix(target, filepath.Ext(target))
-	found, _ := filepath.Glob(base + pattern)
-	sort.Strings(found)
-	return found
-}
-
-func checkPar2(target, dir string, repair bool, o par2.Options) error {
-	set, err := par2.Parse(siblings(target, "*.par2")...)
-	if err != nil {
-		return err
-	}
-	status, err := set.VerifyWith(dir, o)
-	if err != nil {
-		return err
-	}
-
-	lost, moved, work := 0, 0, false
-	for _, st := range status {
-		switch {
-		case st.OK:
-			fmt.Printf("  ok       %s\n", st.File.Name)
-			continue
-		case !st.Present && len(st.Damaged) == len(st.File.Slices):
-			fmt.Printf("  missing  %s (%d slices)\n", st.File.Name, len(st.Damaged))
-		case len(st.Damaged) == 0:
-			// Every slice was found, just not where it belongs: the file can be
-			// rebuilt without spending any recovery data.
-			fmt.Printf("  moved    %s (%d/%d slices misplaced)\n",
-				st.File.Name, len(st.Misplaced), len(st.File.Slices))
-		default:
-			fmt.Printf("  damaged  %s (%d/%d slices bad", st.File.Name, len(st.Damaged), len(st.File.Slices))
-			if len(st.Misplaced) > 0 {
-				fmt.Printf(", %d misplaced", len(st.Misplaced))
-			}
-			fmt.Println(")")
-		}
-		lost += len(st.Damaged)
-		moved += len(st.Misplaced)
-		work = true
-	}
-	if !work {
-		fmt.Println("all files verified")
-		return nil
-	}
-
-	switch {
-	case lost == 0:
-		fmt.Printf("%d slices are misplaced, no recovery data needed\n", moved)
-	default:
-		fmt.Printf("%d slices need repair, %d recovery slices available\n", lost, len(set.Recovery))
-	}
-	if !repair {
-		return nil
-	}
-	if err := set.RepairWith(dir, o); err != nil {
-		return err
-	}
-	fmt.Println("repaired")
-	return nil
-}
-
-func checkPar1(target, dir string, repair bool) error {
-	paths := append([]string{target}, siblings(target, ".p[0-9][0-9]")...)
-	set, err := par1.Parse(paths...)
-	if err != nil {
-		return err
-	}
-	status, err := set.Verify(dir)
-	if err != nil {
-		return err
-	}
-	bad := 0
-	for _, st := range status {
-		switch {
-		case st.OK:
-			fmt.Printf("  ok       %s\n", st.File.Name)
-		case !st.Present:
-			fmt.Printf("  missing  %s\n", st.File.Name)
-			bad++
-		default:
-			fmt.Printf("  damaged  %s\n", st.File.Name)
-			bad++
-		}
-	}
-	if bad == 0 {
-		fmt.Println("all files verified")
-		return nil
-	}
-	fmt.Printf("%d files need repair, %d recovery volumes available\n", bad, len(set.Recovery))
-	if !repair {
-		return nil
-	}
-	if err := set.Repair(dir); err != nil {
-		return err
-	}
-	fmt.Println("repaired")
-	return nil
 }

@@ -29,6 +29,7 @@ The whole thing is around 2,200 lines across two packages. No cgo, no third-part
 - SIMD encoding on arm64 (NEON) and amd64 (SSSE3), with a portable fallback that is verified byte for byte against it
 - Single pass over the input: hashing and encoding read the same bytes, concurrently
 - Memory bounded by slice size times recovery count, not by the size of the protected data
+- Command line compatible with par2cmdline: same options, same exit codes, same recovery files on disk
 - Usable as a library or as a single self-contained `parchive` binary
 - Zero third-party dependencies, `CGO_ENABLED=0`, every `GOARCH` Go supports
 
@@ -51,6 +52,7 @@ Parchive-Go does not try to be faster or more complete than par2cmdline. It aims
 | Needs cgo | `No` | `No` | `n/a` | `n/a` |
 | SIMD acceleration | `arm64, amd64` | `amd64 only` | `Yes` | `Yes` |
 | Misaligned data recovery | `Yes` | `Yes` | `Yes` | `Yes` |
+| par2cmdline compatible CLI | `Yes` | `Partial` | `Reference` | `Yes` |
 | Maintained | `Yes` | `Dormant since 2021` | `Yes` | `Yes` |
 
 Where Parchive-Go genuinely differs is narrow and honest: it is the only Go implementation that creates *and* verifies *and* repairs both formats with no third-party modules and no cgo, under a permissive licence, in a codebase small enough to read in an afternoon. It is not the first pure-Go PAR2 library and it is not the fastest anything.
@@ -89,22 +91,35 @@ go build ./...
 
 ## Usage
 
-The format follows the extension of the recovery file: `.par2` for PAR2, `.par` for PAR1.
+The command line follows [par2cmdline](https://github.com/Parchive/par2cmdline): the same commands, the same options, the same exit codes, and the same recovery files on disk. A script written against `par2` works here by changing the program name.
 
 <img src="res/demo.svg" alt="Creating, damaging, verifying and repairing a recovery set" width="760" />
 
 ### Create
 
 ```bash
-parchive create -s 4096 -n 20 archive.par2 photo.raw notes.tar
+parchive create -s4096 -c20 archive.par2 photo.raw notes.tar
 ```
 
-`-s` is the slice size in bytes, which must be a multiple of 4, and `-n` is the number of recovery slices. Twenty slices of 4 KiB protect against roughly 80 KiB of damage, wherever it falls. Larger slices mean less bookkeeping but coarser recovery.
+```text
+Block size: 4096
+Source file count: 2
+Source block count: 15
+Recovery block count: 20
+Recovery file count: 5
+```
 
-For a PAR1 set, name the output `.par` and drop `-s`, since PAR1 protects whole files rather than slices:
+`-s` sets the block size and `-c` the number of recovery blocks. Without them the defaults are 2000 blocks and 5% redundancy, exactly as par2cmdline chooses them, and the recovery blocks are spread across exponentially sized volumes:
+
+```text
+archive.par2  archive.vol00+1.par2  archive.vol01+2.par2
+archive.vol03+4.par2  archive.vol07+8.par2  archive.vol15+5.par2
+```
+
+For a PAR1 set, name the output `.par`. par2cmdline can repair those but not create them, so this is the one place the two tools differ in what they accept:
 
 ```bash
-parchive create -n 5 archive.par photo.raw notes.tar
+parchive create -c5 archive.par photo.raw notes.tar
 ```
 
 ### Verify
@@ -114,10 +129,20 @@ parchive verify archive.par2
 ```
 
 ```text
-  ok       photo.raw
-  damaged  notes.tar (3/10 slices bad)
-3 slices need repair, 20 recovery slices available
+Verifying source files:
+
+Target: "notes.tar" - damaged. Found 3 of 5 data blocks.
+Target: "photo.raw" - damaged. Found 10 of 10 data blocks.
+
+Repair is required.
+2 file(s) exist but are damaged.
+You have 13 out of 15 data blocks available.
+You have 20 recovery blocks available.
+Repair is possible.
+2 recovery blocks will be used to repair.
 ```
+
+`photo.raw` there had a byte inserted at the front. Every block moved off its offset, yet all ten were still found, so putting it right costs no recovery data. Only the two blocks genuinely lost from `notes.tar` need parity.
 
 ### Repair
 
@@ -125,16 +150,51 @@ parchive verify archive.par2
 parchive repair archive.par2
 ```
 
-Damaged slices are rebuilt in place and missing files are recreated from scratch, as long as there are at least as many recovery slices as there are damaged ones.
+Damaged blocks are rebuilt in place and missing files are recreated from scratch, as long as there are at least as many recovery blocks as there are blocks that could not be found anywhere.
 
-Slices are looked for at their own offsets first. If anything is missing, a one-slice window is slid across the files of the set, which finds data that moved because bytes were inserted or deleted:
+### Exit codes
+
+The values par2cmdline defines, so wrapper scripts behave the same:
+
+| Code | Meaning |
+| --- | --- |
+| `0` | Success, or nothing needed repairing |
+| `1` | Files are damaged and there is enough recovery data to repair them |
+| `2` | Files are damaged and there is not enough recovery data |
+| `3` | Something was wrong with the command line |
+| `4` | The recovery files did not describe the data files |
+| `5` | Repair ran but the files are still damaged |
+| `6` | A file could not be read or written |
+
+### Options
 
 ```text
-  moved    photo.raw (15/15 slices misplaced)
-15 slices are misplaced, no recovery data needed
+Options: (all uses)
+  -a<file> : Set the main PAR2 archive name
+  -B<path> : Set the basepath to use as reference for the datafiles
+  -v [-v]  : Be more verbose
+  -q [-q]  : Be more quiet (-q -q gives silence)
+  -m<n>    : Memory (in MB) to use
+  --       : Treat all following arguments as filenames
+Options: (verify or repair)
+  -p       : Purge backup files and par files on successful recovery
+  -N       : Data skipping (find badly mispositioned data blocks)
+  -S<n>    : Skip leaway (distance +/- from expected block position)
+Options: (create)
+  -b<n>    : Set the Block-Count (default 2000)
+  -s<n>    : Set the Block-Size (don't use both -b and -s)
+  -r<n>    : Level of redundancy (%, default 5%)
+  -r<c><n> : Redundancy target size, <c>=g(iga),m(ega),k(ilo) bytes
+  -c<n>    : Recovery Block-Count (don't use both -r and -c)
+  -f<n>    : First Recovery-Block-Number (default 0)
+  -u       : Uniform recovery file sizes (default is variable)
+  -l       : Limit size of recovery files (don't use both -u and -l)
+  -n<n>    : Number of recovery files (max 31)
+  -R       : Recurse into subdirectories
+   @       : Process a listing of files specified in text (file) input
 ```
 
-That file had a single byte inserted at the front, which moved every slice off its offset without losing anything, so it is rebuilt without spending recovery data at all. The same search finds slices that ended up inside a different file of the set. Pass `-no-scan` to skip it and check only the offsets slices should be at.
+Symlinking the binary to `par2create`, `par2verify` or `par2repair` selects the operation from the program name, the same way par2cmdline does.
 
 ### Library
 
@@ -215,7 +275,7 @@ C' = step(C, incoming) ^ A^n(table[outgoing])
 
 where `A` is the linear map that advances the register by one zero byte. `A^n` for a window of megabytes comes from repeated squaring of a 32 by 32 bit matrix rather than iterating, so the precomputation is instant regardless of slice size.
 
-The scan only runs when the cheap aligned check already came up short, so intact data never pays for it. Within a scan, a window that matches a known slice is stepped over rather than crawled through, and files that verified cleanly are not searched at all.
+The scan only runs when the cheap aligned check already came up short, so intact data never pays for it. Within a scan, a window that matches a known slice is stepped over rather than crawled through, and files that verified cleanly are not searched at all. Library callers that would rather fail fast can turn it off with `Options{NoScan: true}`.
 
 ## Limitations
 
@@ -231,7 +291,7 @@ Stated plainly, because a data-integrity tool that oversells itself is worse tha
 
 Measured on an Apple M-series laptop, 256 MiB input, 512 KiB slices, 20 recovery slices, best of three runs:
 
-| | Parchive-Go | akalin/gopar | par2cmdline 1.3.0 | par2cmdline-turbo 1.5.0 |
+| | Parchive-Go | akalin/gopar | Parchive par2cmdline 1.3.0 | par2cmdline-turbo 1.5.0 |
 | --- | --- | --- | --- | --- |
 | Create | `0.37s` | `0.99s` | `1.92s` | `0.36s` |
 | Verify | `0.37s` | `0.74s` | `1.25s` | `0.33s` |

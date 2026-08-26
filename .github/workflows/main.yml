@@ -59,7 +59,7 @@ jobs:
           head -c 400000 /dev/urandom > data.bin
           head -c 90000 /dev/urandom > extra.bin
           cp data.bin data.orig && cp extra.bin extra.orig
-          ../parchive create -s 8192 -n 30 set.par2 data.bin extra.bin
+          ../parchive create -s8192 -c30 set.par2 data.bin extra.bin
           dd if=/dev/zero of=data.bin bs=1 seek=1000 count=20000 conv=notrunc
           rm -f extra.bin
           par2 repair set.par2
@@ -83,7 +83,7 @@ jobs:
           head -c 200000 /dev/urandom > one.dat
           head -c 60000 /dev/urandom > two.dat
           cp one.dat one.orig && cp two.dat two.orig
-          ../parchive create -n 4 set.par one.dat two.dat
+          ../parchive create -c4 set.par one.dat two.dat
           dd if=/dev/zero of=one.dat bs=1 seek=500 count=5000 conv=notrunc
           rm -f two.dat
           par2 repair set.par
@@ -95,7 +95,7 @@ jobs:
           head -c 150000 /dev/urandom > a.dat
           head -c 40000 /dev/urandom > b.dat
           cp a.dat a.orig && cp b.dat b.orig
-          ../parchive create -n 3 set.par a.dat b.dat
+          ../parchive create -c3 set.par a.dat b.dat
           rm -f b.dat
           dd if=/dev/zero of=a.dat bs=1 seek=100 count=4000 conv=notrunc
           ../parchive repair set.par

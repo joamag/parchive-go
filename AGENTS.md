@@ -63,6 +63,21 @@ field arithmetic, remember that `TestGFMatchesPAR1Polynomial` and the PAR2
 constant assignment pin the wire format: if they fail, the change is a
 compatibility break rather than a refactor.
 
+## Command line compatibility
+
+The command line is meant to be interchangeable with par2cmdline: the same
+options, the same exit codes, and the same recovery files written to disk. The
+expectations in `cmd/parchive/layout_test.go` were taken from par2cmdline 1.3.0
+by running the same command and listing what it produced, so a change that
+breaks them is a compatibility break rather than a refactor.
+
+When touching the command line, check a real par2cmdline if one is installed:
+
+```bash
+par2 create -s8192 -c20 set.par2 data.bin && ls
+parchive create -s8192 -c20 set.par2 data.bin && ls
+```
+
 ## Benchmarks
 
 ```bash

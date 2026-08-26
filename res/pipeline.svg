@@ -22,7 +22,7 @@
 
   <!-- ══════════════ 1 · CREATE ══════════════ -->
   <text x="60" y="56" fill="#00ADD8" font-size="15" font-weight="700" letter-spacing="2.4">CREATE</text>
-  <text x="146" y="56" fill="#5c7a94" font-size="14" font-family="ui-monospace,SFMono-Regular,Menlo,monospace">parchive create -s 4096 -n 20 archive.par2 file1 file2</text>
+  <text x="146" y="56" fill="#5c7a94" font-size="14" font-family="ui-monospace,SFMono-Regular,Menlo,monospace">parchive create -s4096 -c20 archive.par2 file1 file2</text>
 
   <!-- input files -->
   <g>

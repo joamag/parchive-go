@@ -15,6 +15,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+* The command line now matches par2cmdline, including its options and exit codes
+* Recovery data is spread across several volume files, as par2cmdline does
 * Creating a recovery set is around eleven times faster and now matches par2cmdline-turbo
 * Input files are read once instead of twice when creating a recovery set
 * Recovery data is computed across all available processor cores
